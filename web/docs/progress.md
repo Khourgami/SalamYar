@@ -30,7 +30,7 @@ See `docs/reports/phase-1-web-mock.md`.
 | T2 | Design tokens (`DESIGN_SYSTEM §1–§3`) + UI primitives (`src/components/ui/`) | ✅ Done |
 | T3 | App shell: sidebar/drawer, sticky test banner, logo mark | ✅ Done |
 | T4 | Login page redesign (`§6.1`) | ✅ Done |
-| T5 | Doctors list redesign (`§6.2`) | ⬜ Not started |
+| T5 | Doctors list redesign (`§6.2`) | ✅ Done |
 | T6 | Session page chat restyle (`§6.3`, `§5.11`) | ⬜ Not started |
 | T7 | Result card, backstage, evaluation, reveal (`§6.4–§6.6`) | ⬜ Not started |
 | T8 | History and admin (`§6.7–§6.9`, UI_SPEC §3.5) | ⬜ Not started |
@@ -53,6 +53,7 @@ npm run test    # vitest run
 
 ## Log
 
+- 2026-09-30 — **Phase 2** — T5 — Doctors list on the primitives: responsive 1/2/3/4-column grid, one identical 56px neutral avatar per card (`data-testid="doctor-avatar"`), `display_name` as `h3`, optional `description` caption, a full-width secondary `شروع گفتگو` with a loading state while every other button is disabled, the hint in an info `Alert`, and no specialty text or per-agent avatar. `build` ✅ `lint` ✅ `test` ✅ (161 tests, +2). Next: T6 chat restyle.
 - 2026-09-30 — **Phase 2** — T4 — Login redesign: a two-column desktop layout (form card max 400px on the inline-start side, `primary-100` brand panel with the 64px logo, the app name and the UI_SPEC §3.1 line on the inline-end side) that collapses to one column on mobile; `TextField`/`PasswordField`/`Button` primitives; the error as a danger `Alert` with focus moved to the username field; no forgot-password. Added `LOGIN_TITLE`/`LOGIN_BRAND_LINE` to `uiText` (UI_SPEC §3.1) and made `TextField` forward its ref. **Changed test:** `App.test.tsx` “renders the application shell” now uses `getAllByText` (the login page shows the app name twice). `build` ✅ `lint` ✅ `test` ✅ (159 tests, +2). Next: T5 doctors list.
 - 2026-09-30 — **Phase 2** — T3 — Rebuilt the shell: `LogoMark` (§4.4 inline SVG), `SidebarNav` (shared by the ≥1024px sidebar and the mobile drawer, role-gated UI_SPEC §2 items, `aria-current="page"` via `NavLink`, display name + `خروج`), `MobileTopBar` (56px, `منو` button) and `Drawer` (focus trap, Escape/overlay/navigation close, focus back to the menu button). `TopBanner` is now the sticky, non-closable §4.3 banner on tokens; `AppLayout` wires the sidebar + content column; `Header.tsx` is removed. `build` ✅ `lint` ✅ `test` ✅ (157 tests, +6). Next: T4 login page.
 - 2026-09-30 — **Phase 2** — T2 — Added the §2 CSS variables, the §3 Tailwind mapping (colours, radius, shadow, `fontSize` styles), base styles (canvas, font stack, `:focus-visible` ring), the `.icon-dir` RTL mirror, `.overlay-scrim` and a `prefers-reduced-motion` rule; added Vazirmatn 600. Built the primitives in `src/components/ui/`: `Button` (4 variants, 2 sizes, loading/`aria-busy`), `TextField`, `PasswordField` (show/hide), `TextArea`, `Select`, `Card`, `Badge`, `Alert`, `Modal` (focus trap), `Toast`, `Skeleton`, `SegmentedControl` (group/tabs/radios), `SegmentedRating` (native radios + 1/3/5 anchors). `ConfirmDialog` now uses `Modal`+`Button`; `Toast`/`Skeleton` moved to `ui/`. `build` ✅ `lint` ✅ `test` ✅ (151 tests, +10). Next: T3 app shell.

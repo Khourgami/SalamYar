@@ -4,7 +4,10 @@ import { Stethoscope } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 
 import { createSession, listAgents } from '@/api/endpoints'
-import { EmptyState, ErrorState, InlineSpinner, LoadingState } from '@/components/States'
+import { EmptyState, ErrorState, LoadingState } from '@/components/States'
+import { Alert } from '@/components/ui/Alert'
+import { Button } from '@/components/ui/Button'
+import { Card } from '@/components/ui/Card'
 import {
   DOCTORS_EMPTY,
   DOCTORS_HINT,
@@ -14,10 +17,11 @@ import {
 } from '@/i18n/uiText'
 
 /**
- * UI_SPEC §3.2 — a grid of blind doctors.
+ * UI_SPEC §3.2 / DESIGN_SYSTEM §6.2 — a responsive grid of blind doctors.
  *
  * The agent `id` is never rendered: it is only used as a React key and as the `POST /sessions`
- * payload. Architecture and model stay hidden until the evaluation is submitted.
+ * payload. Every card shows the **same** neutral avatar; architecture and model stay hidden until
+ * the evaluation is submitted.
  */
 export function DoctorsPage() {
   const navigate = useNavigate()
@@ -48,49 +52,52 @@ export function DoctorsPage() {
   const agents = agentsQuery.data ?? []
 
   return (
-    <section className="space-y-6">
-      <h1 className="text-lg font-bold text-gray-900">{DOCTORS_TITLE}</h1>
+    <section className="flex flex-col gap-6">
+      <h1 className="text-h1 text-primary-900">{DOCTORS_TITLE}</h1>
 
       {error ? (
-        <p role="alert" className="rounded bg-red-50 px-3 py-2 text-sm text-red-700">
+        <Alert tone="danger" role="alert">
           {error}
-        </p>
+        </Alert>
       ) : null}
 
       {agents.length === 0 ? (
         <EmptyState message={DOCTORS_EMPTY} />
       ) : (
-        <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {agents.map((agent) => {
             const isStarting = startMutation.isPending && startMutation.variables === agent.id
             return (
-              <li
-                key={agent.id}
-                className="flex flex-col items-center gap-3 rounded-lg border border-gray-200 bg-white p-5 text-center shadow-sm"
-              >
-                <span className="flex h-14 w-14 items-center justify-center rounded-full bg-teal-50 text-teal-700">
-                  <Stethoscope aria-hidden="true" className="h-7 w-7" />
-                </span>
-                <h2 className="text-base font-semibold text-gray-900">{agent.display_name}</h2>
-                {agent.description ? (
-                  <p className="text-sm text-gray-500">{agent.description}</p>
-                ) : null}
-                <button
-                  type="button"
-                  onClick={() => startMutation.mutate(agent.id)}
-                  disabled={startMutation.isPending}
-                  className="mt-auto inline-flex items-center justify-center gap-2 rounded bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-gray-300"
-                >
-                  {isStarting ? <InlineSpinner /> : null}
-                  {DOCTORS_START}
-                </button>
+              <li key={agent.id} className="h-full">
+                <Card className="flex h-full flex-col items-center gap-3 text-center">
+                  <span
+                    data-testid="doctor-avatar"
+                    className="flex h-14 w-14 items-center justify-center rounded-full bg-primary-100 text-primary-600"
+                  >
+                    <Stethoscope aria-hidden="true" className="h-7 w-7" />
+                  </span>
+                  <h3 className="text-h3 text-ink-900">{agent.display_name}</h3>
+                  {agent.description ? (
+                    <p className="text-caption text-ink-500">{agent.description}</p>
+                  ) : null}
+                  <Button
+                    variant="secondary"
+                    fullWidth
+                    className="mt-auto"
+                    loading={isStarting}
+                    disabled={startMutation.isPending}
+                    onClick={() => startMutation.mutate(agent.id)}
+                  >
+                    {DOCTORS_START}
+                  </Button>
+                </Card>
               </li>
             )
           })}
         </ul>
       )}
 
-      <p className="rounded bg-gray-100 px-3 py-2 text-sm text-gray-600">{DOCTORS_HINT}</p>
+      <Alert tone="info">{DOCTORS_HINT}</Alert>
     </section>
   )
 }

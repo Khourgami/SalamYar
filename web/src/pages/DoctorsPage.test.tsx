@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { HttpResponse, http } from 'msw'
+import { HttpResponse, delay, http } from 'msw'
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
@@ -60,6 +60,70 @@ describe('virtual doctors list', () => {
     expect(screen.getByText(GREETING_FA)).toBeInTheDocument()
     expect(screen.getByLabelText(CHAT_PLACEHOLDER)).toHaveValue('')
     expect(screen.queryByText(DOCTORS_HINT)).not.toBeInTheDocument()
+  })
+
+  it('renders the same neutral avatar on every card', async () => {
+    signInAs('doctor')
+    renderApp('/')
+
+    await screen.findByText(DOCTORS_TITLE)
+    const avatars = screen.getAllByTestId('doctor-avatar')
+    expect(avatars).toHaveLength(MOCK_AGENTS.length)
+    const first = avatars[0].outerHTML
+    for (const avatar of avatars) expect(avatar.outerHTML).toBe(first)
+  })
+
+  it('disables every start button while one session is being created', async () => {
+    const user = userEvent.setup()
+    const now = new Date().toISOString()
+    server.use(
+      http.post('*/api/v1/sessions', async () => {
+        await delay(300)
+        return HttpResponse.json(
+          {
+            id: 'slow-session',
+            agent: MOCK_AGENTS[0],
+            status: 'active',
+            end_reason: null,
+            questions_asked: 0,
+            created_at: now,
+            completed_at: null,
+            evaluated: false,
+            first_patient_message: null,
+            final_triage_level: null,
+            messages: [
+              {
+                id: 'slow-greeting',
+                seq: 1,
+                role: 'agent',
+                kind: 'greeting',
+                text: GREETING_FA,
+                created_at: now,
+                latency_ms: null,
+              },
+            ],
+            result: null,
+            backstage: null,
+            feedback: [],
+            evaluation: null,
+            reveal: null,
+          },
+          { status: 201 },
+        )
+      }),
+    )
+
+    signInAs('doctor')
+    renderApp('/')
+    await screen.findByText(DOCTORS_TITLE)
+
+    await user.click(screen.getAllByRole('button', { name: DOCTORS_START })[0])
+
+    await waitFor(() => {
+      for (const button of screen.getAllByRole('button', { name: DOCTORS_START })) {
+        expect(button).toBeDisabled()
+      }
+    })
   })
 
   it('shows the empty state when there is no enabled agent', async () => {
