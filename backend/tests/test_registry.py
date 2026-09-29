@@ -43,18 +43,18 @@ def _yaml(*agents: tuple[str, str, str, bool, str]) -> str:
 def test_repo_config_is_valid_and_matches_table() -> None:
     agents = parse_agents(REPO_CONFIG.read_text(encoding="utf-8"))
     expected = [
-        ("b-gemini3flash", "دکتر ۱", "structured", "google/gemini-3-flash", True),
+        ("b-gemini3flash", "دکتر ۱", "structured", "google/gemini-3-flash-preview", True),
         ("a-sonnet5", "دکتر ۲", "simple", "anthropic/claude-sonnet-5", True),
         ("b-gpt54", "دکتر ۳", "structured", "openai/gpt-5.4", True),
         ("b-deepseekv4pro", "دکتر ۴", "structured", "deepseek/deepseek-v4-pro", True),
         ("a-gpt54", "دکتر ۵", "simple", "openai/gpt-5.4", True),
         ("b-sonnet5", "دکتر ۶", "structured", "anthropic/claude-sonnet-5", True),
         ("b-gpt5mini", "دکتر ۷", "structured", "openai/gpt-5-mini", True),
-        ("b-gemini31pro", "دکتر ۸", "structured", "google/gemini-3.1-pro", True),
-        ("a-gemini3flash", "دکتر ۹", "simple", "google/gemini-3-flash", False),
+        ("b-gemini31pro", "دکتر ۸", "structured", "google/gemini-3.1-pro-preview", True),
+        ("a-gemini3flash", "دکتر ۹", "simple", "google/gemini-3-flash-preview", False),
         ("a-deepseekv4pro", "دکتر ۱۰", "simple", "deepseek/deepseek-v4-pro", False),
         ("a-gpt5mini", "دکتر ۱۱", "simple", "openai/gpt-5-mini", False),
-        ("a-gemini31pro", "دکتر ۱۲", "simple", "google/gemini-3.1-pro", False),
+        ("a-gemini31pro", "دکتر ۱۲", "simple", "google/gemini-3.1-pro-preview", False),
     ]
     got = [(a.id, a.display_name, a.architecture, a.model, a.enabled) for a in agents.values()]
     assert got == expected

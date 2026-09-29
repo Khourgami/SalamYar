@@ -1,7 +1,7 @@
 # Agent registry — Agent = Architecture × LLM × Config (BACKEND_ARCHITECTURE §8).
 # Every agent inherits `defaults`; any key (including nested `options`) can be overridden per agent.
 # Extra per-agent flag: `send_temperature: false` omits temperature for models that reject it.
-# Model slugs are best guesses until `uv run python -m app.cli smoke-test` verifies them.
+# Model slugs were checked against OpenRouter `GET /models` (2026-09-30); `uv run python -m app.cli smoke-test` re-checks them.
 
 defaults:
   temperature: 0.3
@@ -19,7 +19,7 @@ agents:
     display_name: "دکتر ۱"
     description: null
     architecture: structured
-    model: google/gemini-3-flash
+    model: google/gemini-3-flash-preview  # D-022: confirmed in OpenRouter /models on 2026-09-30
     enabled: true
   - id: a-sonnet5
     display_name: "دکتر ۲"
@@ -61,13 +61,13 @@ agents:
     display_name: "دکتر ۸"
     description: null
     architecture: structured
-    model: google/gemini-3.1-pro
+    model: google/gemini-3.1-pro-preview  # D-022: confirmed in OpenRouter /models on 2026-09-30
     enabled: true
   - id: a-gemini3flash
     display_name: "دکتر ۹"
     description: null
     architecture: simple
-    model: google/gemini-3-flash
+    model: google/gemini-3-flash-preview  # D-022: confirmed in OpenRouter /models on 2026-09-30
     enabled: false
   - id: a-deepseekv4pro
     display_name: "دکتر ۱۰"
@@ -85,5 +85,5 @@ agents:
     display_name: "دکتر ۱۲"
     description: null
     architecture: simple
-    model: google/gemini-3.1-pro
+    model: google/gemini-3.1-pro-preview  # D-022: confirmed in OpenRouter /models on 2026-09-30
     enabled: false
