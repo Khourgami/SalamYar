@@ -1,0 +1,14 @@
+﻿ad418bd backend: phase 1 report
+a36efc2 backend: list-agents and smoke-test CLI
+d6b8134 backend: admin sessions, metrics, CSV export, reload
+d9e9999 backend: feedback, evaluation and reveal
+9c337c2 backend: sessions, turns, locking, result card and backstage
+0a0164c backend: agent registry and architectures A/B
+28053b6 backend: deterministic guard with 100% branch coverage
+778320b backend: json_runner with repair retry and tracing
+4e9ba65 backend: clinical schemas, Persian texts, prompts v1
+164233a backend: LLM client layer (OpenRouter, FakeLLM)
+e1a7277 backend: auth, users, create-user CLI
+876c141 backend: database models and engine
+c1e34ef backend: project scaffold, settings, error handlers
+e42e47a backend: phase 1 plan

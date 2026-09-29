@@ -1,0 +1,23 @@
+node_modules
+dist
+coverage
+.vite
+tsconfig.tsbuildinfo
+
+# Local environment files must never reach the image.
+.env
+.env.*
+!.env.example
+
+# Tests and the test harness are not part of the production bundle.
+src/**/*.test.ts
+src/**/*.test.tsx
+src/test
+
+# Repository furniture.
+.git
+.gitignore
+docs
+README.md
+Dockerfile
+.dockerignore

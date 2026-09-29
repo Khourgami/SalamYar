@@ -1,0 +1,83 @@
+# AI Triage Agent Lab — Backend
+
+FastAPI + SQLite backend for the triage agent lab (PoC). It implements `../docs/API_CONTRACT.md` v1,
+the agent framework, architectures A (`simple`) and B (`structured`), the deterministic guard,
+LLM tracing, admin metrics, and CSV export. Design: `docs/BACKEND_ARCHITECTURE.md`,
+`docs/AGENT_SPEC.md`. Decisions: `docs/decisions.md`. Status: `docs/progress.md`.
+
+## Setup
+
+```bash
+uv sync                      # Python 3.12 + all dependencies
+cp .env.example .env         # then set OPENROUTER_API_KEY and JWT_SECRET
+```
+
+All settings are listed in `.env.example` (BACKEND_ARCHITECTURE §13).
+
+## Run
+
+```bash
+uv run uvicorn app.main:app --reload --port 8000   # API at http://localhost:8000/api/v1, docs at /docs
+uv run python -m app.dev_server --port 8000        # same API with an offline demo LLM (no OpenRouter, no cost)
+```
+
+The demo server answers every agent turn with fixed valid JSON (asks twice, then concludes), which
+is handy for frontend integration.
+
+## CLI
+
+```bash
+uv run python -m app.cli create-user --username dr.x --display-name "دکتر ..." --role evaluator   # prompts for password (≥ 8 chars)
+uv run python -m app.cli list-agents
+uv run python -m app.cli smoke-test [--agent ID] [--include-disabled]    # real OpenRouter calls, costs a few cents
+```
+
+`smoke-test` checks every selected agent's model slug against `GET /models`, runs a scripted
+two-message conversation plus a forced conclusion through the real architectures, prints a table,
+and exits non-zero if any agent fails.
+
+## Agents
+
+Agents are declared in `config/agents.yaml` (`defaults` + one entry per agent; any default can be
+overridden per agent, including nested `options`; `send_temperature: false` omits temperature).
+Reload without restarting via `POST /api/v1/admin/agents/reload` (an invalid file keeps the previous
+config). Running sessions always use the config snapshot taken when they started.
+
+## Test and lint
+
+```bash
+uv run pytest -q                       # no network; the LLM is faked
+uv run pytest -q --cov=app --cov-branch
+uv run pytest -q tests/test_guard.py --cov=app.agents.guard --cov-branch --cov-fail-under=100
+uv run ruff check . && uv run ruff format .
+```
+
+## Docker
+
+```bash
+docker build -t triage-backend .
+docker run -p 8000:8000 --env-file .env -v "$(pwd)/data:/app/data" triage-backend
+```
+
+The SQLite database lives in `/app/data` (mount it as a volume). Create users inside the container
+with `docker exec -it <container> uv run python -m app.cli create-user ...`.
+
+## Layout
+
+```
+app/
+  main.py, settings.py, errors.py, startup.py, cli.py, smoke.py, dev_server.py
+  api/        routers (auth, agents, sessions, evaluations, admin)
+  services/   session, evaluation, metrics, export, user services
+  agents/     registry, config, base, clinical_schemas, guard, json_runner, texts_fa,
+              architectures/{simple,structured}.py, prompts/v1/*.md
+  llm/        client protocol, OpenRouterClient, FakeLLM (tests), DemoLLM (dev server)
+  db/         SQLAlchemy models, engine, column types
+config/agents.yaml
+tests/
+```
+
+## Git note
+
+The workspace had no repository, so this folder has its own git repository (see B-001 in
+`docs/decisions.md` for how to fold it into a root repository later).

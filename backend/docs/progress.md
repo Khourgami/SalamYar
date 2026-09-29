@@ -1,0 +1,49 @@
+# Backend Progress
+
+Updated by the backend coder at the end of every task.
+
+## Current status
+**Phase 1 — Backend core: ✅ complete (2026-09-30).** Report: `reports/phase-1-backend-core.md`.
+
+- 243 tests pass; coverage 97% (`app/`), 100% line+branch for `guard.py`; ruff clean; Docker image builds.
+- **Action needed (product owner):** `google/gemini-3-flash` and `google/gemini-3.1-pro` do not exist on
+  OpenRouter (public `/models`, 2026-09-30) — agents `b-gemini3flash`, `b-gemini31pro` (enabled) and
+  `a-gemini3flash`, `a-gemini31pro` will fail until `config/agents.yaml` is fixed. Existing candidates
+  include `google/gemini-3-flash-preview` and `google/gemini-3.1-pro-preview` (not changed; no guessing).
+- **Real smoke test not run:** no `OPENROUTER_API_KEY` available. Run `uv run python -m app.cli smoke-test --include-disabled` once `.env` exists.
+- Next: M2 integration (`../docker-compose.yml`, web against `python -m app.dev_server`, then real models).
+
+| Task | Scope | Status |
+|---|---|---|
+| T1 | Scaffold: uv project, ruff, settings, `.env.example`, FastAPI app, error handlers, `AppError`, README | ✅ Done |
+| T2 | Database: SQLite engine (WAL, FK), SQLAlchemy models for §7 tables, `init_db`, `get_db` | ✅ Done |
+| T3 | Auth: bcrypt, JWT, `current_user`/`require_admin`, `/auth/login`, `/auth/me`, CLI `create-user` | ✅ Done |
+| T4 | LLM layer: client protocol, `OpenRouterClient`, `FakeLLM` | ✅ Done |
+| T5 | Clinical schemas, Persian texts, prompts v1, prompt loader | ✅ Done |
+| T6 | `json_runner` (fence stripping, repair retry, tracing) | ✅ Done |
+| T7 | Guard G1–G5 (100% branch coverage) | ✅ Done |
+| T8 | Registry (`config/agents.yaml`), base protocol, architectures `simple` and `structured` | ✅ Done |
+| T9 | Sessions and turns (service + routers, locking, resend, cap, finish, 502) | ✅ Done |
+| T10 | Feedback, evaluation, reveal | ✅ Done |
+| T11 | Admin: sessions, metrics, CSV export, reload | ✅ Done |
+| T12 | CLI `list-agents` and `smoke-test` | ✅ Done |
+| T13 | Dockerfile, `.dockerignore`, README, final coverage check, phase report | ✅ Done |
+
+Per task: `uv run pytest -q` + `uv run ruff check .`, update this file, commit (`backend: ...`).
+
+## Log
+<!-- - YYYY-MM-DD — task — what was done — tests — next -->
+- 2026-09-29 — Phase 1 plan written. No git repository existed in the workspace; a repository was initialized inside `backend/` (see B-001).
+- 2026-09-30 — T1 — uv project (Python 3.12), ruff, settings, .env.example, FastAPI app with contract error handlers and AppError, README — 4 tests pass
+- 2026-09-30 — T2 — SQLite engine (WAL, FK), 9 typed models from §7, UTC datetime type, JSON helpers, init_db/get_db — 12 tests pass
+- 2026-09-30 — T3 — bcrypt hashing, JWT HS256, current_user/require_admin, /auth/login + /auth/me, CLI create-user (getpass, min 8 chars, no duplicates) — 25 tests pass
+- 2026-09-30 — T4 — LLMClient protocol + models, OpenRouterClient (provider deny, usage include, optional reasoning/temperature, response_format per mode, 1 retry on network/429/5xx, safe LLMError, key never logged), FakeLLM — 37 tests pass
+- 2026-09-30 — T5 — clinical schemas + enums + validators, texts_fa (generated from spec), prompts v1 (verbatim), loader (str.replace rendering) — 91 tests pass
+- 2026-09-30 — T6 — json_runner: fence/prose stripping, repair retry with repair.md, AgentOutputError, per-attempt TraceRecord (LLMError traced then re-raised) — 103 tests pass
+- 2026-09-30 — T7 — guard G1–G5, 100% line+branch coverage (19 tests; see B-008 for the coverage command) — 122 tests pass
+- 2026-09-30 — T8 — config/agents.yaml (12 agents), registry (merge, validation, reload keeps old config, sync_to_db), base protocol, architectures simple + structured — 154 tests pass
+- 2026-09-30 — T9 — session service + routers: /agents (sha256 per-user order), create/list/get sessions, messages (lock, resend reuse, cap, 502 AGENT_ERROR), finish, result card, backstage; manual run via app.dev_server + DemoLLM OK (/docs 200, full A and B flows) — 176 tests pass
+- 2026-09-30 — T10 — feedback PUT/DELETE (owner, kind, lock), evaluation (strict EvaluationInput, completed/once/comparison rules), reveal after evaluation — 203 tests pass
+- 2026-09-30 — T11 — admin sessions list/detail, metrics (3 group_by values, nearest-rank percentiles, pairwise rules), CSV export (utf-8-sig), reload (400 keeps previous) — 224 tests pass
+- 2026-09-30 — T12 — CLI list-agents + smoke-test (in-memory run through real architectures, model check, table, exit codes), 16 offline tests. Real smoke test NOT run: no OPENROUTER_API_KEY. Public GET /models slug check (no key): 4/6 slugs exist; google/gemini-3-flash and google/gemini-3.1-pro are MISSING (see phase report) — 240 tests pass
+- 2026-09-30 — T13 — Dockerfile + .dockerignore (image builds and runs; API + CLI verified in container), README, DemoLLM tests; final: 243 tests, 97% coverage, guard 100%; phase report written
