@@ -18,18 +18,57 @@ All settings are listed in `.env.example` (BACKEND_ARCHITECTURE §13).
 
 ```bash
 uv run uvicorn app.main:app --reload --port 8000   # API at http://localhost:8000/api/v1, docs at /docs
-uv run python -m app.dev_server --port 8000        # same API with an offline demo LLM (no OpenRouter, no cost)
 ```
 
-The demo server answers every agent turn with fixed valid JSON (asks twice, then concludes), which
-is handy for frontend integration.
+## Dev server (offline, for web integration)
+
+`app.dev_server` runs the real API (auth, sessions, registry, DB) with the offline `DemoLLM`
+instead of OpenRouter: no key, no cost (D-029). It needs no `.env`: when `OPENROUTER_API_KEY` or
+`JWT_SECRET` is missing it fills a placeholder key and a fixed dev-only JWT secret.
+
+```powershell
+uv run python -m app.dev_server --seed                   # http://127.0.0.1:8000/api/v1, DB data/dev.db
+uv run python -m app.dev_server --seed --delay-ms 0      # no simulated latency
+uv run python -m app.dev_server --db data/dev2.db --port 8001
+```
+
+| Option | Default | Meaning |
+|---|---|---|
+| `--db PATH` | `data/dev.db` | SQLite file. `data/lab.db` is refused. |
+| `--seed` | off | Creates the demo users below if the username does not exist yet (never overwrites a password). |
+| `--delay-ms N` | `1500` | Async sleep per LLM call, so the typing indicator and 409 `TURN_IN_PROGRESS` can be observed. A structured conclusion makes two calls (2 × N). |
+| `--host`, `--port` | `127.0.0.1`, `8000` | |
+
+On start-up it prints the URL, the database path, and the seeded usernames. Seeded users (dev
+only, same as the web mocks):
+
+| username | password | role | display name |
+|---|---|---|---|
+| `doctor` | `doctor123` | evaluator | «دکتر آزمایشی» |
+| `doctor2` | `doctor123` | evaluator | «دکتر آزمایشی ۲» |
+| `admin` | `admin123` | admin | «مدیر» |
+
+Demo behavior: the agent asks twice (simple) or once (structured) and then concludes.
+**Failure trigger:** the first time a turn is processed whose last patient message contains
+«خطا», every attempt (including the repair retry) returns invalid JSON, so the request ends in
+502 `AGENT_ERROR` and the session stays active. Resending the identical text is answered normally,
+and the patient message is reused, not duplicated. The trigger fires once per session and
+transcript.
 
 ## CLI
 
 ```bash
 uv run python -m app.cli create-user --username dr.x --display-name "دکتر ..." --role evaluator   # prompts for password (≥ 8 chars)
+uv run python -m app.cli create-user --username qa --display-name "QA" --role evaluator --password-stdin
 uv run python -m app.cli list-agents
 uv run python -m app.cli smoke-test [--agent ID] [--include-disabled]    # real OpenRouter calls, costs a few cents
+```
+
+`--password-stdin` reads the password from the first line of stdin instead of prompting. The rules
+are the same: at least 8 characters, no duplicate username. PowerShell:
+
+```powershell
+"secret123" | uv run python -m app.cli create-user --username qa --display-name "QA" --role evaluator --password-stdin
 ```
 
 `smoke-test` checks every selected agent's model slug against `GET /models`, runs a scripted

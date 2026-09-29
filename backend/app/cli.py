@@ -26,9 +26,17 @@ def _read_password(prompt: Callable[[str], str] | None = None) -> str:
     return password
 
 
+def _read_password_stdin() -> str:
+    """First line of stdin (line ending and a leading BOM removed); same length rule."""
+    password = sys.stdin.readline().rstrip("\r\n").lstrip("\ufeff")
+    if len(password) < MIN_PASSWORD_LENGTH:
+        raise UserError(f"password must be at least {MIN_PASSWORD_LENGTH} characters")
+    return password
+
+
 def cmd_create_user(args: argparse.Namespace) -> int:
     try:
-        password = _read_password()
+        password = _read_password_stdin() if args.password_stdin else _read_password()
         init_db()
         with session_factory()() as db:
             user = create_user(
@@ -138,6 +146,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--username", required=True)
     p.add_argument("--display-name", required=True)
     p.add_argument("--role", required=True, choices=["evaluator", "admin"])
+    p.add_argument(
+        "--password-stdin",
+        action="store_true",
+        help="read the password from the first line of stdin instead of prompting",
+    )
     p.set_defaults(func=cmd_create_user)
 
     p = sub.add_parser("list-agents", help="print the configured agents")
