@@ -17,7 +17,7 @@ export function renderApp(initialPath = '/') {
 }
 
 /** Write a valid auth pair into localStorage so the guards treat the visitor as signed in. */
-export function signInAs(username: 'doctor' | 'admin'): void {
+export function signInAs(username: 'doctor' | 'doctor2' | 'admin'): void {
   const record = MOCK_USERS.find((user) => user.username === username)
   if (!record) throw new Error(`Unknown mock user: ${username}`)
   writeStoredAuth(mockToken(record.username), publicUser(record))

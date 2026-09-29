@@ -6,6 +6,8 @@ import { MOCK_AGENTS } from '@/mocks/data'
 import { FIXTURE_SESSION_IDS } from '@/mocks/fixtures'
 import { KPI_KEYS, KPI_LABELS } from '@/i18n/labels'
 import {
+  CHAT_FEEDBACK_DOWN,
+  CHAT_FEEDBACK_UP,
   ADMIN_COL_SESSIONS,
   ADMIN_COL_UNDERTRIAGE,
   ADMIN_EXPORT,
@@ -196,6 +198,9 @@ describe('admin session detail', () => {
     expect(screen.queryByLabelText('پیام خود را بنویسید…')).not.toBeInTheDocument()
     expect(screen.queryByTestId('evaluation-form')).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: NEXT_DOCTOR })).not.toBeInTheDocument()
+    // W-022: feedback is shown read-only, never as 👍/👎 controls
+    expect(screen.queryByRole('button', { name: CHAT_FEEDBACK_UP })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: CHAT_FEEDBACK_DOWN })).not.toBeInTheDocument()
   })
 
   it('shows the reveal of a completed but unevaluated session', async () => {

@@ -83,10 +83,12 @@ const inputClass =
 
 export interface EvaluationFormProps {
   session: SessionDetail
+  /** Called on 409 `EVALUATION_LOCKED`; the parent shows the §4 toast (it outlives the form). */
+  onEvaluationLocked?: () => void
 }
 
 /** UI_SPEC §3.3 — part C: the evaluation form with hand-written validation. */
-export function EvaluationForm({ session }: EvaluationFormProps) {
+export function EvaluationForm({ session, onEvaluationLocked }: EvaluationFormProps) {
   const queryClient = useQueryClient()
 
   const [scores, setScores] = useState<Partial<Record<ScoreKey, number>>>({})
@@ -120,6 +122,9 @@ export function EvaluationForm({ session }: EvaluationFormProps) {
     },
     onError: (error: unknown) => {
       // a stale page (already evaluated / not completed) simply reloads the session
+      if (isApiError(error) && error.code === 'EVALUATION_LOCKED') {
+        onEvaluationLocked?.()
+      }
       if (isApiError(error) && (error.status === 409 || error.status === 400)) {
         void queryClient.invalidateQueries({ queryKey: sessionQueryKey(session.id) })
       }

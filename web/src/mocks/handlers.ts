@@ -101,46 +101,119 @@ function currentUser(request: Request): MockUserRecord | null {
   return MOCK_USERS.find((user) => user.username === username) ?? null
 }
 
-function canAccess(session: StoredSession, user: MockUserRecord): boolean {
-  return session.user_id === user.id || user.role === 'admin'
+/**
+ * v1.1 §5/§6: every session- or message-scoped endpoint is **owner-only for every role**,
+ * admins included. Admins read other users' sessions only through `/admin/sessions/{id}`.
+ */
+function isOwner(session: StoredSession, user: MockUserRecord): boolean {
+  return session.user_id === user.id
 }
 
 /* ------------------------------------------------------------------ *
- * Evaluation validation
+ * Evaluation validation (API_CONTRACT §6, v1.1: strict body)
  * ------------------------------------------------------------------ */
 
-function validateEvaluation(input: EvaluationInput): string | null {
-  if (!input || typeof input !== 'object') return 'The body must be a JSON object.'
+const EVALUATION_KEYS = [
+  'scores',
+  'unnecessary_questions_count',
+  'safety_flags',
+  'doctor_verdict',
+  'comments',
+  'comparison',
+] as const
 
-  const scores = input.scores
-  if (!scores || typeof scores !== 'object') return 'scores is required.'
+const COMMENT_KEYS = ['strengths', 'weaknesses', 'missed_questions', 'general'] as const
+
+/** Exactly the expected key set: every required key present, no unknown key. */
+function hasExactKeys(value: unknown, expected: readonly string[]): boolean {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  const keys = Object.keys(value as Record<string, unknown>)
+  return keys.length === expected.length && expected.every((key) => keys.includes(key))
+}
+
+function isNullableString(value: unknown): boolean {
+  return value === null || typeof value === 'string'
+}
+
+function validateEvaluation(input: unknown): string | null {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) {
+    return 'The body must be a JSON object.'
+  }
+  if (!hasExactKeys(input, EVALUATION_KEYS)) {
+    return `The body must contain exactly: ${EVALUATION_KEYS.join(', ')}.`
+  }
+
+  const body = input as Record<string, unknown>
+
+  const scores = body.scores
+  if (!hasExactKeys(scores, EVALUATION_SCORE_KEYS)) {
+    return 'scores must contain every KPI key and nothing else.'
+  }
   for (const key of EVALUATION_SCORE_KEYS) {
-    const value = scores[key]
+    const value = (scores as Record<string, unknown>)[key]
     if (typeof value !== 'number' || !Number.isInteger(value) || value < 1 || value > 5) {
       return `scores.${key} must be an integer between 1 and 5.`
     }
   }
 
-  const flags = input.safety_flags
-  if (!flags || typeof flags !== 'object') return 'safety_flags is required.'
-  for (const key of SAFETY_FLAG_KEYS) {
-    if (typeof flags[key] !== 'boolean') return `safety_flags.${key} must be a boolean.`
+  const unnecessary = body.unnecessary_questions_count
+  if (
+    unnecessary !== null &&
+    (typeof unnecessary !== 'number' ||
+      !Number.isInteger(unnecessary) ||
+      unnecessary < 0 ||
+      unnecessary > 50)
+  ) {
+    return 'unnecessary_questions_count must be null or an integer between 0 and 50.'
   }
 
-  const unnecessary = input.unnecessary_questions_count
-  if (unnecessary !== null && unnecessary !== undefined) {
-    if (typeof unnecessary !== 'number' || !Number.isInteger(unnecessary) || unnecessary < 0 || unnecessary > 50) {
-      return 'unnecessary_questions_count must be an integer between 0 and 50.'
+  const flags = body.safety_flags
+  if (!hasExactKeys(flags, SAFETY_FLAG_KEYS)) {
+    return 'safety_flags must contain every flag key and nothing else.'
+  }
+  for (const key of SAFETY_FLAG_KEYS) {
+    if (typeof (flags as Record<string, unknown>)[key] !== 'boolean') {
+      return `safety_flags.${key} must be a boolean.`
     }
   }
 
-  const verdict = input.doctor_verdict
-  if (!verdict || typeof verdict !== 'object') return 'doctor_verdict is required.'
-  if (!TRIAGE_LEVELS.includes(verdict.triage_level)) {
+  const verdict = body.doctor_verdict
+  if (!hasExactKeys(verdict, ['triage_level', 'specialty', 'main_diagnosis'])) {
+    return 'doctor_verdict must contain triage_level, specialty and main_diagnosis.'
+  }
+  const verdictRecord = verdict as Record<string, unknown>
+  if (!TRIAGE_LEVELS.includes(verdictRecord.triage_level as (typeof TRIAGE_LEVELS)[number])) {
     return 'doctor_verdict.triage_level is not a valid triage level.'
   }
-  if (!SPECIALTIES.includes(verdict.specialty)) {
+  if (!SPECIALTIES.includes(verdictRecord.specialty as (typeof SPECIALTIES)[number])) {
     return 'doctor_verdict.specialty is not a valid specialty.'
+  }
+  if (!isNullableString(verdictRecord.main_diagnosis)) {
+    return 'doctor_verdict.main_diagnosis must be a string or null.'
+  }
+
+  const comments = body.comments
+  if (!hasExactKeys(comments, COMMENT_KEYS)) {
+    return 'comments must contain every comment key and nothing else.'
+  }
+  for (const key of COMMENT_KEYS) {
+    if (!isNullableString((comments as Record<string, unknown>)[key])) {
+      return `comments.${key} must be a string or null.`
+    }
+  }
+
+  const comparison = body.comparison
+  if (comparison !== null) {
+    if (!hasExactKeys(comparison, ['compared_session_id', 'winner'])) {
+      return 'comparison must contain compared_session_id and winner.'
+    }
+    const record = comparison as Record<string, unknown>
+    if (typeof record.compared_session_id !== 'string' || record.compared_session_id === '') {
+      return 'comparison.compared_session_id must be a non-empty string.'
+    }
+    if (record.winner !== 'this' && record.winner !== 'other' && record.winner !== 'tie') {
+      return 'comparison.winner must be "this", "other" or "tie".'
+    }
   }
 
   return null
@@ -426,7 +499,7 @@ export const handlers: RequestHandler[] = [
     if (!user) return unauthorized()
     const session = mockStore.get(String(params.sessionId))
     if (!session) return notFound('Session')
-    if (!canAccess(session, user)) return forbidden()
+    if (!isOwner(session, user)) return forbidden()
     return HttpResponse.json(toDetail(session, user))
   }),
 
@@ -435,7 +508,7 @@ export const handlers: RequestHandler[] = [
     if (!user) return unauthorized()
     const session = mockStore.get(String(params.sessionId))
     if (!session) return notFound('Session')
-    if (!canAccess(session, user)) return forbidden()
+    if (!isOwner(session, user)) return forbidden()
 
     const body = (await request.json().catch(() => null)) as { text?: unknown } | null
     const text = typeof body?.text === 'string' ? body.text.trim() : ''
@@ -503,7 +576,7 @@ export const handlers: RequestHandler[] = [
     if (!user) return unauthorized()
     const session = mockStore.get(String(params.sessionId))
     if (!session) return notFound('Session')
-    if (!canAccess(session, user)) return forbidden()
+    if (!isOwner(session, user)) return forbidden()
     if (session.status === 'completed') {
       return errorResponse(409, 'SESSION_COMPLETED', 'This session is already completed.')
     }
@@ -530,14 +603,17 @@ export const handlers: RequestHandler[] = [
     if (!user) return unauthorized()
     const session = mockStore.ownerOfMessage(String(params.messageId))
     if (!session) return notFound('Message')
-    if (!canAccess(session, user)) return forbidden()
+    if (!isOwner(session, user)) return forbidden()
+
+    /* Contract order: unknown → 404 · not owner → 403 · wrong kind → 400 · evaluated → 409. */
+    const message = session.messages.find((candidate) => candidate.id === String(params.messageId))
+    if (!message || message.kind !== 'question' && message.kind !== 'result') {
+      return validationError(
+        'Feedback is only allowed on agent messages of kind question or result.',
+      )
+    }
     if (session.evaluation) {
       return errorResponse(409, 'EVALUATION_LOCKED', 'Feedback is read-only after evaluation.')
-    }
-
-    const message = session.messages.find((candidate) => candidate.id === String(params.messageId))
-    if (!message || message.role !== 'agent') {
-      return validationError('Feedback is only allowed on agent messages.')
     }
 
     const body = (await request.json().catch(() => null)) as
@@ -572,7 +648,15 @@ export const handlers: RequestHandler[] = [
     if (!user) return unauthorized()
     const session = mockStore.ownerOfMessage(String(params.messageId))
     if (!session) return notFound('Message')
-    if (!canAccess(session, user)) return forbidden()
+    if (!isOwner(session, user)) return forbidden()
+
+    /* Same checks and order as PUT; deleting feedback that does not exist is an idempotent 204. */
+    const message = session.messages.find((candidate) => candidate.id === String(params.messageId))
+    if (!message || (message.kind !== 'question' && message.kind !== 'result')) {
+      return validationError(
+        'Feedback is only allowed on agent messages of kind question or result.',
+      )
+    }
     if (session.evaluation) {
       return errorResponse(409, 'EVALUATION_LOCKED', 'Feedback is read-only after evaluation.')
     }
@@ -586,7 +670,28 @@ export const handlers: RequestHandler[] = [
     if (!user) return unauthorized()
     const session = mockStore.get(String(params.sessionId))
     if (!session) return notFound('Session')
-    if (!canAccess(session, user)) return forbidden()
+    if (!isOwner(session, user)) return forbidden()
+
+    /* The body is validated **before** the state checks (API_CONTRACT §6, v1.1). */
+    const input = (await request.json().catch(() => null)) as EvaluationInput | null
+    const problem = validateEvaluation(input)
+    if (problem) return validationError(problem)
+    const payload = input as EvaluationInput
+
+    if (payload.comparison) {
+      const compared = mockStore.get(payload.comparison.compared_session_id)
+      if (
+        !compared ||
+        compared.id === session.id ||
+        compared.status !== 'completed' ||
+        compared.user_id !== user.id
+      ) {
+        return validationError(
+          'comparison.compared_session_id must be one of your other completed sessions.',
+        )
+      }
+    }
+
     if (session.status !== 'completed') {
       return errorResponse(409, 'SESSION_NOT_COMPLETED', 'The session is still active.')
     }
@@ -594,25 +699,8 @@ export const handlers: RequestHandler[] = [
       return errorResponse(409, 'EVALUATION_LOCKED', 'This session was already evaluated.')
     }
 
-    const input = (await request.json().catch(() => null)) as EvaluationInput | null
-    if (!input) return validationError('The body must be a JSON object.')
-    const problem = validateEvaluation(input)
-    if (problem) return validationError(problem)
-
-    if (input.comparison) {
-      const compared = mockStore.get(input.comparison.compared_session_id)
-      if (!compared || compared.status !== 'completed' || compared.user_id !== user.id) {
-        return validationError(
-          'comparison.compared_session_id must be one of your completed sessions.',
-        )
-      }
-      if (input.comparison.winner !== 'this' && input.comparison.winner !== 'other' && input.comparison.winner !== 'tie') {
-        return validationError('comparison.winner must be "this", "other" or "tie".')
-      }
-    }
-
     const evaluation: Evaluation = {
-      ...input,
+      ...payload,
       id: `evaluation-${session.id}`,
       session_id: session.id,
       created_at: nowIso(),

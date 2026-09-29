@@ -24,6 +24,13 @@ export const MOCK_USERS: MockUserRecord[] = [
   },
   {
     id: '10000000-0000-4000-8000-000000000002',
+    username: 'doctor2',
+    password: 'doctor123',
+    display_name: 'دکتر آزمایشی ۲',
+    role: 'evaluator',
+  },
+  {
+    id: '10000000-0000-4000-8000-000000000003',
     username: 'admin',
     password: 'admin123',
     display_name: 'مدیر',

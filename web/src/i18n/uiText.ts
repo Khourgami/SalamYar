@@ -166,6 +166,8 @@ export const EVALUATION_COMPARE_SELECT = 'کدام جلسه قبلی؟'
 export const EVALUATION_COMPARE_QUESTION = 'کدام بهتر بود؟'
 export const EVALUATION_SUBMIT = 'ثبت ارزیابی'
 export const EVALUATION_REQUIRED = 'لطفاً این مورد را کامل کنید'
+/** §4 — 409 `EVALUATION_LOCKED` on submit. */
+export const EVALUATION_LOCKED = 'این جلسه قبلاً ارزیابی شده است.'
 export const EVALUATION_ERROR = 'ثبت ارزیابی انجام نشد. دوباره تلاش کنید.'
 export const EVALUATION_SCORE_HINT = '۱ = ضعیف، ۵ = عالی'
 

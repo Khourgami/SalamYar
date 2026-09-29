@@ -1,13 +1,15 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import type { SessionDetail } from '@/api/types'
+import { Toast } from '@/components/Toast'
 import { BackstagePanel } from '@/components/session/BackstagePanel'
 import { ChatPanel } from '@/components/session/ChatPanel'
 import { EvaluationForm } from '@/components/session/EvaluationForm'
 import { EvaluationSummary } from '@/components/session/EvaluationSummary'
 import { ResultCard } from '@/components/session/ResultCard'
 import { RevealBox } from '@/components/session/RevealBox'
-import { NEXT_DOCTOR } from '@/i18n/uiText'
+import { EVALUATION_LOCKED, NEXT_DOCTOR } from '@/i18n/uiText'
 
 export interface SessionContentProps {
   session: SessionDetail
@@ -22,9 +24,12 @@ export interface SessionContentProps {
 export function SessionContent({ session, readOnly = false }: SessionContentProps) {
   const completed = session.status === 'completed'
   const evaluated = session.evaluation !== null
+  // The toast lives here, above the form, so it survives the refetch that removes the form.
+  const [toast, setToast] = useState<string | null>(null)
 
   return (
     <div className="space-y-6">
+      <Toast message={toast} onDismiss={() => setToast(null)} />
       <ChatPanel session={session} readOnly={readOnly} />
 
       {completed ? (
@@ -33,7 +38,9 @@ export function SessionContent({ session, readOnly = false }: SessionContentProp
           <BackstagePanel session={session} />
 
           {session.evaluation ? <EvaluationSummary evaluation={session.evaluation} /> : null}
-          {!evaluated && !readOnly ? <EvaluationForm session={session} /> : null}
+          {!evaluated && !readOnly ? (
+            <EvaluationForm session={session} onEvaluationLocked={() => setToast(EVALUATION_LOCKED)} />
+          ) : null}
 
           {session.reveal ? <RevealBox reveal={session.reveal} /> : null}
 

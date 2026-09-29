@@ -12,8 +12,10 @@ import {
   listSessions,
   login,
   postMessage,
+  putFeedback,
   submitEvaluation,
 } from '@/api/endpoints'
+import type { EvaluationInput } from '@/api/types'
 import { GREETING_FA, MOCK_ERROR_TRIGGER } from '@/mocks/data'
 import { FIXTURE_SESSION_IDS } from '@/mocks/fixtures'
 import { setupMockApi, stubNavigation } from '@/test/msw'
@@ -381,6 +383,152 @@ describe('evaluation and reveal', () => {
       compared_session_id: FIXTURE_SESSION_IDS.evaluated,
       winner: 'other',
     })
+  })
+})
+
+describe('v1.1 ownership — owner-only for every role', () => {
+  /** A message id of the doctor's active fixture (any agent `question`). */
+  async function doctorAgentMessageId(): Promise<string> {
+    await loginAs('doctor', 'doctor123')
+    const session = await getSession(FIXTURE_SESSION_IDS.active)
+    const message = session.messages.find((candidate) => candidate.kind === 'question')
+    if (!message) throw new Error('fixture has no question message')
+    return message.id
+  }
+
+  async function expectForbiddenEverywhere(username: string, password: string) {
+    const messageId = await doctorAgentMessageId()
+    await loginAs(username, password)
+
+    const results = await Promise.all([
+      getSession(FIXTURE_SESSION_IDS.active).catch((caught: unknown) => caught as ApiError),
+      postMessage(FIXTURE_SESSION_IDS.active, 'سلام').catch((caught: unknown) => caught as ApiError),
+      finishSession(FIXTURE_SESSION_IDS.active).catch((caught: unknown) => caught as ApiError),
+      putFeedback(messageId, { rating: 'up', note: null }).catch(
+        (caught: unknown) => caught as ApiError,
+      ),
+      deleteFeedback(messageId).catch((caught: unknown) => caught as ApiError),
+      submitEvaluation(FIXTURE_SESSION_IDS.completedStructured, validEvaluationInput()).catch(
+        (caught: unknown) => caught as ApiError,
+      ),
+    ])
+
+    for (const result of results) {
+      expect(result).toBeInstanceOf(ApiError)
+      expect((result as ApiError).status).toBe(403)
+      expect((result as ApiError).code).toBe('FORBIDDEN')
+    }
+  }
+
+  it('gives doctor2 a 403 on all six session-scoped endpoints', async () => {
+    await expectForbiddenEverywhere('doctor2', 'doctor123')
+  })
+
+  it('gives an admin a 403 on all six session-scoped endpoints', async () => {
+    await expectForbiddenEverywhere('admin', 'admin123')
+  })
+
+  it('checks 404 before ownership for an unknown id', async () => {
+    await loginAs('doctor2', 'doctor123')
+    const error = (await getSession('00000000-0000-4000-8000-000000000000').catch(
+      (caught: unknown) => caught,
+    )) as ApiError
+    expect(error.status).toBe(404)
+    expect(error.code).toBe('NOT_FOUND')
+  })
+
+  it('returns the caller\u2019s own sessions for every role', async () => {
+    await loginAs('admin', 'admin123')
+    const mine = await listSessions()
+    expect(mine.total).toBe(0)
+  })
+})
+
+describe('v1.1 strict evaluation body', () => {
+  async function completedSessionId(): Promise<string> {
+    await loginAs('doctor', 'doctor123')
+    return FIXTURE_SESSION_IDS.completedStructured
+  }
+
+  it('rejects a body that is missing the comparison key', async () => {
+    const sessionId = await completedSessionId()
+    const body = { ...validEvaluationInput() } as Record<string, unknown>
+    delete body.comparison
+
+    const error = (await submitEvaluation(sessionId, body as unknown as EvaluationInput).catch(
+      (caught: unknown) => caught,
+    )) as ApiError
+    expect(error.status).toBe(400)
+    expect(error.code).toBe('VALIDATION_ERROR')
+  })
+
+  it('rejects unknown keys', async () => {
+    const sessionId = await completedSessionId()
+    const error = (await submitEvaluation(sessionId, {
+      ...validEvaluationInput(),
+      extra: true,
+    } as unknown as EvaluationInput).catch((caught: unknown) => caught)) as ApiError
+    expect(error.status).toBe(400)
+  })
+
+  it('rejects a non-integer score', async () => {
+    const sessionId = await completedSessionId()
+    const input = validEvaluationInput()
+    const error = (await submitEvaluation(sessionId, {
+      ...input,
+      scores: { ...input.scores, efficiency: 3.5 },
+    } as unknown as EvaluationInput).catch((caught: unknown) => caught)) as ApiError
+    expect(error.status).toBe(400)
+  })
+
+  it('validates the body before the state checks', async () => {
+    await loginAs('doctor', 'doctor123')
+    // active session + an invalid body: the body wins (400, not 409 SESSION_NOT_COMPLETED)
+    const active = await createSession({ agent_id: 'a-sonnet5' })
+    const body = { ...validEvaluationInput() } as Record<string, unknown>
+    delete body.comments
+
+    const error = (await submitEvaluation(active.id, body as unknown as EvaluationInput).catch(
+      (caught: unknown) => caught,
+    )) as ApiError
+    expect(error.status).toBe(400)
+    expect(error.code).toBe('VALIDATION_ERROR')
+  })
+})
+
+describe('v1.1 feedback check order and idempotent delete', () => {
+  it('validates the message kind (400) before the evaluation lock (409)', async () => {
+    await loginAs('doctor', 'doctor123')
+    // the evaluated fixture is locked, but a greeting message is the wrong kind → 400 first
+    const session = await getSession(FIXTURE_SESSION_IDS.evaluated)
+    const greeting = session.messages.find((message) => message.kind === 'greeting')
+    if (!greeting) throw new Error('fixture has no greeting')
+
+    const error = (await putFeedback(greeting.id, { rating: 'up', note: null }).catch(
+      (caught: unknown) => caught,
+    )) as ApiError
+    expect(error.status).toBe(400)
+    expect(error.code).toBe('VALIDATION_ERROR')
+  })
+
+  it('deleting feedback that does not exist is an idempotent 204', async () => {
+    await loginAs('doctor', 'doctor123')
+    const session = await getSession(FIXTURE_SESSION_IDS.active)
+    const message = session.messages.find((candidate) => candidate.kind === 'question')
+    if (!message) throw new Error('fixture has no question message')
+
+    await expect(deleteFeedback(message.id)).resolves.toBeUndefined()
+    await expect(deleteFeedback(message.id)).resolves.toBeUndefined()
+  })
+})
+
+describe('v1.1 list ordering', () => {
+  it('returns GET /admin/sessions newest first', async () => {
+    await loginAs('admin', 'admin123')
+    const list = await adminListSessions()
+    const created = list.items.map((item) => item.created_at)
+    expect(created).toEqual([...created].sort((a, b) => b.localeCompare(a)))
+    expect(list.items[0].id).toBe(FIXTURE_SESSION_IDS.active)
   })
 })
 

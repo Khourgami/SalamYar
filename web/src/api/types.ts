@@ -410,9 +410,42 @@ export type ExportTable =
  * §1 — Errors
  * ------------------------------------------------------------------ */
 
+/**
+ * Every error code of `API_CONTRACT §1` (v1.1). `HTTP_<status>` is the client's fallback when a
+ * response carries no contract error body.
+ */
+export type ApiErrorCode =
+  | 'VALIDATION_ERROR'
+  | 'UNAUTHORIZED'
+  | 'FORBIDDEN'
+  | 'NOT_FOUND'
+  | 'METHOD_NOT_ALLOWED'
+  | 'TURN_IN_PROGRESS'
+  | 'SESSION_COMPLETED'
+  | 'SESSION_NOT_COMPLETED'
+  | 'EVALUATION_LOCKED'
+  | 'INTERNAL_ERROR'
+  | 'AGENT_ERROR'
+  | 'NETWORK_ERROR'
+
+/** Runtime list of the contract error codes, used by the error-handling tests. */
+export const API_ERROR_CODES = [
+  'VALIDATION_ERROR',
+  'UNAUTHORIZED',
+  'FORBIDDEN',
+  'NOT_FOUND',
+  'METHOD_NOT_ALLOWED',
+  'TURN_IN_PROGRESS',
+  'SESSION_COMPLETED',
+  'SESSION_NOT_COMPLETED',
+  'EVALUATION_LOCKED',
+  'INTERNAL_ERROR',
+  'AGENT_ERROR',
+] as const satisfies readonly ApiErrorCode[]
+
 export interface ApiErrorBody {
   error: {
-    code: string
+    code: ApiErrorCode
     message: string
   }
 }
