@@ -16,12 +16,12 @@ import { FORBIDDEN, NAV_DOCTORS, NETWORK_ERROR } from '@/i18n/uiText'
 function ForbiddenState() {
   return (
     <div
-      className="rounded-lg border border-gray-200 bg-white p-6 text-center"
+      className="rounded-lg border border-line bg-surface p-6 text-center"
       role="alert"
       data-testid="session-forbidden"
     >
-      <p className="text-sm font-semibold text-gray-900">{FORBIDDEN}</p>
-      <Link to="/" className="mt-3 inline-block text-sm font-medium text-teal-700 hover:underline">
+      <p className="text-h2 text-ink-900">{FORBIDDEN}</p>
+      <Link to="/" className="mt-3 inline-block text-body-strong text-primary-600 hover:underline">
         {NAV_DOCTORS}
       </Link>
     </div>

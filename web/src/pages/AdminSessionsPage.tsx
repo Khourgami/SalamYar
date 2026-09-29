@@ -34,7 +34,7 @@ import { faDateTime, truncate } from '@/lib/format'
 type EvaluatedFilter = '' | 'true' | 'false'
 
 const selectClass =
-  'rounded border border-gray-300 px-2 py-1.5 text-sm focus:border-teal-500 focus:outline-none'
+  'rounded-md border border-line bg-surface px-2 py-1.5 text-body focus:border-primary-600 focus:outline-none'
 
 /** UI_SPEC §3.6 — all sessions with agent / user / evaluated filters. */
 export function AdminSessionsPage() {
@@ -86,10 +86,10 @@ export function AdminSessionsPage() {
 
   return (
     <section className="space-y-4">
-      <h1 className="text-lg font-bold text-gray-900">{ADMIN_SESSIONS_TITLE}</h1>
+      <h1 className="text-h1 text-primary-900">{ADMIN_SESSIONS_TITLE}</h1>
 
       <div className="flex flex-wrap gap-3">
-        <label className="flex items-center gap-2 text-sm text-gray-600">
+        <label className="flex items-center gap-2 text-body text-ink-700">
           {ADMIN_FILTER_AGENT}
           <select
             value={agentId}
@@ -105,7 +105,7 @@ export function AdminSessionsPage() {
           </select>
         </label>
 
-        <label className="flex items-center gap-2 text-sm text-gray-600">
+        <label className="flex items-center gap-2 text-body text-ink-700">
           {ADMIN_FILTER_USER}
           <select
             value={userId}
@@ -121,7 +121,7 @@ export function AdminSessionsPage() {
           </select>
         </label>
 
-        <label className="flex items-center gap-2 text-sm text-gray-600">
+        <label className="flex items-center gap-2 text-body text-ink-700">
           {ADMIN_FILTER_EVALUATED}
           <select
             value={evaluated}
@@ -138,13 +138,13 @@ export function AdminSessionsPage() {
       {items.length === 0 ? (
         <EmptyState message={HISTORY_EMPTY} />
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
+        <div className="overflow-x-auto rounded-lg border border-line bg-surface">
           <table
-            className="w-full min-w-[64rem] border-collapse text-sm"
+            className="w-full min-w-[64rem] border-collapse text-body"
             data-testid="admin-sessions-table"
           >
             <thead>
-              <tr className="bg-gray-50 text-gray-600">
+              <tr className="bg-canvas">
                 {[
                   HISTORY_COL_DOCTOR,
                   ADMIN_SESSIONS_COL_USER,
@@ -160,7 +160,7 @@ export function AdminSessionsPage() {
                   <th
                     key={header}
                     scope="col"
-                    className="border-b border-gray-200 px-3 py-2 text-start font-medium whitespace-nowrap"
+                    className="border-b border-line px-3 py-2 text-start text-caption font-semibold whitespace-nowrap text-ink-500"
                   >
                     {header}
                   </th>
@@ -180,20 +180,20 @@ export function AdminSessionsPage() {
                       navigate(`/admin/sessions/${session.id}`)
                     }
                   }}
-                  className="cursor-pointer border-b border-gray-100 last:border-0 hover:bg-gray-50 focus:bg-gray-50 focus:outline-none"
+                  className="cursor-pointer border-b border-line last:border-0 hover:bg-primary-100 focus:bg-primary-100 focus:outline-none"
                   data-testid="admin-session-row"
                 >
                   <td className="px-3 py-2">{session.agent.display_name}</td>
                   <td className="px-3 py-2 whitespace-nowrap">{session.user.display_name}</td>
-                  <td className="px-3 py-2 whitespace-nowrap text-gray-600">
+                  <td className="px-3 py-2 whitespace-nowrap text-ink-500">
                     {faDateTime(session.created_at, { dateOnly: true })}
                   </td>
-                  <td className="max-w-xs truncate px-3 py-2 text-gray-600">
+                  <td className="max-w-xs truncate px-3 py-2 text-ink-500">
                     {session.first_patient_message
                       ? truncate(session.first_patient_message, 60)
                       : HISTORY_NO_FIRST_MESSAGE}
                   </td>
-                  <td className="px-3 py-2 whitespace-nowrap text-gray-700">
+                  <td className="px-3 py-2 whitespace-nowrap text-ink-700">
                     {SESSION_STATUS_LABELS[session.status]}
                   </td>
                   <td className="px-3 py-2 whitespace-nowrap">
@@ -202,13 +202,13 @@ export function AdminSessionsPage() {
                   <td className="px-3 py-2 whitespace-nowrap">
                     {session.evaluated ? HISTORY_EVALUATED_YES : HISTORY_EVALUATED_NO}
                   </td>
-                  <td className="ltr px-3 py-2 whitespace-nowrap text-gray-500">
+                  <td className="ltr px-3 py-2 whitespace-nowrap text-ink-500">
                     {session.agent.id}
                   </td>
-                  <td className="ltr px-3 py-2 whitespace-nowrap text-gray-500">
+                  <td className="ltr px-3 py-2 whitespace-nowrap text-ink-500">
                     {session.agent_reveal.model}
                   </td>
-                  <td className="ltr px-3 py-2 whitespace-nowrap text-gray-500">
+                  <td className="ltr px-3 py-2 whitespace-nowrap text-ink-500">
                     {session.agent_reveal.architecture}
                   </td>
                 </tr>

@@ -2,9 +2,23 @@ import { describe, expect, it } from 'vitest'
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
+import { HttpResponse, http } from 'msw'
+import { EVALUATION_SCORE_KEYS, SAFETY_FLAG_KEYS } from '@/api/types'
+import type { MetricsRow } from '@/api/types'
+import { server } from '@/mocks/server'
 import { MOCK_AGENTS } from '@/mocks/data'
 import { FIXTURE_SESSION_IDS } from '@/mocks/fixtures'
 import { KPI_KEYS, KPI_LABELS } from '@/i18n/labels'
+import {
+  ADMIN_CHART_CAPTION,
+  ADMIN_CHART_TITLE,
+  ADMIN_RECENT_TITLE,
+  ADMIN_RECENT_VIEW_ALL,
+  ADMIN_SUMMARY_EVALUATED,
+  ADMIN_SUMMARY_SAFETY_FLOOR,
+  ADMIN_SUMMARY_SAFETY_FLAGS,
+  ADMIN_SUMMARY_TOTAL_SESSIONS,
+} from '@/i18n/uiText'
 import {
   CHAT_FEEDBACK_DOWN,
   CHAT_FEEDBACK_UP,
@@ -30,6 +44,32 @@ import { stubDownloads } from '@/test/downloads'
 import { renderApp, signInAs } from '@/test/renderApp'
 
 setupMockApi()
+
+function metricsRow(overrides: Partial<MetricsRow> & { key: string; label: string }): MetricsRow {
+  return {
+    architecture: null,
+    model: null,
+    sessions_total: 0,
+    sessions_evaluated: 0,
+    triage_exact_rate: null,
+    undertriage_rate: null,
+    undertriage_emergency_rate: null,
+    overtriage_rate: null,
+    insufficient_info_count: 0,
+    specialty_match_rate: null,
+    mean_scores: Object.fromEntries(EVALUATION_SCORE_KEYS.map((key) => [key, null])) as MetricsRow['mean_scores'],
+    safety_flag_counts: Object.fromEntries(SAFETY_FLAG_KEYS.map((key) => [key, 0])) as MetricsRow['safety_flag_counts'],
+    mean_questions: null,
+    turn_latency_p50_ms: null,
+    turn_latency_p90_ms: null,
+    mean_cost_usd: null,
+    feedback_up: 0,
+    feedback_down: 0,
+    pairwise: { wins: 0, losses: 0, ties: 0 },
+    safety_floor_escalations: 0,
+    ...overrides,
+  }
+}
 
 async function openDashboard() {
   signInAs('admin')
@@ -137,6 +177,93 @@ describe('admin dashboard', () => {
 
     expect(await screen.findByTestId('toast')).toHaveTextContent(
       adminReloadToast('۱۲', '۸'),
+    )
+  })
+})
+
+describe('admin dashboard summary, chart and recent sessions (DESIGN_SYSTEM §6.8)', () => {
+  const rows = [
+    metricsRow({
+      key: 'a1',
+      label: 'دکتر الف',
+      sessions_total: 10,
+      sessions_evaluated: 7,
+      triage_exact_rate: 0.5,
+      undertriage_rate: 0.1,
+      specialty_match_rate: 0.6,
+      safety_flag_counts: {
+        dangerous_undertriage: 1,
+        medication_or_treatment_advice: 2,
+        definitive_diagnosis_claim: 0,
+        medically_incorrect_information: 0,
+        irrelevant_or_inappropriate_content: 0,
+      },
+      safety_floor_escalations: 3,
+    }),
+    metricsRow({
+      key: 'a2',
+      label: 'دکتر ب',
+      sessions_total: 4,
+      sessions_evaluated: 2,
+      // a null rate must not break the chart
+      triage_exact_rate: null,
+      undertriage_rate: 0.25,
+      specialty_match_rate: null,
+      safety_flag_counts: {
+        dangerous_undertriage: 5,
+        medication_or_treatment_advice: 0,
+        definitive_diagnosis_claim: 0,
+        medically_incorrect_information: 0,
+        irrelevant_or_inappropriate_content: 0,
+      },
+      safety_floor_escalations: 1,
+    }),
+  ]
+
+  function mockMetrics() {
+    server.use(
+      http.get('*/api/v1/admin/metrics', () =>
+        HttpResponse.json({ group_by: 'agent', rows, generated_at: new Date().toISOString() }),
+      ),
+    )
+  }
+
+  it('shows the exact sums of the current rows', async () => {
+    mockMetrics()
+    signInAs('admin')
+    renderApp('/admin')
+    await screen.findByTestId('metrics-table')
+
+    expect(screen.getByTestId('summary-total-sessions')).toHaveTextContent(ADMIN_SUMMARY_TOTAL_SESSIONS)
+    expect(screen.getByTestId('summary-total-sessions')).toHaveTextContent('۱۴')
+    expect(screen.getByTestId('summary-evaluated')).toHaveTextContent(ADMIN_SUMMARY_EVALUATED)
+    expect(screen.getByTestId('summary-evaluated')).toHaveTextContent('۹')
+    expect(screen.getByTestId('summary-safety-flags')).toHaveTextContent(ADMIN_SUMMARY_SAFETY_FLAGS)
+    expect(screen.getByTestId('summary-safety-flags')).toHaveTextContent('۸')
+    expect(screen.getByTestId('summary-safety-floor')).toHaveTextContent(ADMIN_SUMMARY_SAFETY_FLOOR)
+    expect(screen.getByTestId('summary-safety-floor')).toHaveTextContent('۴')
+  })
+
+  it('renders the chart card with its title and caption even when a rate is null', async () => {
+    mockMetrics()
+    signInAs('admin')
+    renderApp('/admin')
+
+    const chart = await screen.findByTestId('triage-chart')
+    expect(within(chart).getByText(ADMIN_CHART_TITLE)).toBeInTheDocument()
+    expect(within(chart).getByText(ADMIN_CHART_CAPTION)).toBeInTheDocument()
+  })
+
+  it('shows at most five recent sessions and links to /admin/sessions', async () => {
+    signInAs('admin')
+    renderApp('/admin')
+
+    const card = await screen.findByTestId('recent-sessions')
+    expect(within(card).getByText(ADMIN_RECENT_TITLE)).toBeInTheDocument()
+    expect(within(card).getAllByTestId('recent-session-row').length).toBeLessThanOrEqual(5)
+    expect(within(card).getByRole('link', { name: ADMIN_RECENT_VIEW_ALL })).toHaveAttribute(
+      'href',
+      '/admin/sessions',
     )
   })
 })

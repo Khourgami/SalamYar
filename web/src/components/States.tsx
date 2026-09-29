@@ -26,7 +26,7 @@ export function ErrorState({
 }) {
   return (
     <div
-      className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800"
+      className="rounded-lg border border-danger-600 bg-danger-100 p-4 text-body text-danger-700"
       role="alert"
       data-testid="error-state"
     >
@@ -35,7 +35,7 @@ export function ErrorState({
         <button
           type="button"
           onClick={onRetry}
-          className="mt-3 rounded border border-red-300 bg-white px-3 py-1 font-medium text-red-700 hover:bg-red-100"
+          className="mt-3 rounded-md border border-danger-600 bg-surface px-3 py-1 text-body-strong text-danger-700 hover:bg-danger-100"
         >
           {TRY_AGAIN}
         </button>
@@ -47,7 +47,7 @@ export function ErrorState({
 export function EmptyState({ message }: { message: string }) {
   return (
     <div
-      className="rounded-lg border border-dashed border-gray-300 bg-white p-6 text-center text-sm text-gray-500"
+      className="rounded-lg border border-dashed border-line bg-surface p-6 text-center text-body text-ink-500"
       data-testid="empty-state"
     >
       {message}

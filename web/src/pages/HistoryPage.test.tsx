@@ -67,23 +67,24 @@ describe('my sessions', () => {
     await openHistory()
 
     expect(screen.getAllByTestId('history-row')).toHaveLength(3)
-    expect(screen.getByRole('button', { name: HISTORY_TAB_ALL })).toHaveAttribute(
-      'aria-pressed',
+    // phase 2 T8: the tabs are now a `role="tablist"` segmented control (DESIGN_SYSTEM §6.7)
+    expect(screen.getByRole('tab', { name: HISTORY_TAB_ALL })).toHaveAttribute(
+      'aria-selected',
       'true',
     )
 
-    await user.click(screen.getByRole('button', { name: HISTORY_TAB_UNEVALUATED }))
+    await user.click(screen.getByRole('tab', { name: HISTORY_TAB_UNEVALUATED }))
 
     await waitFor(() => {
       expect(screen.getAllByTestId('history-row')).toHaveLength(2)
     })
     expect(screen.queryByText(HISTORY_EVALUATED_YES)).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: HISTORY_TAB_UNEVALUATED })).toHaveAttribute(
-      'aria-pressed',
+    expect(screen.getByRole('tab', { name: HISTORY_TAB_UNEVALUATED })).toHaveAttribute(
+      'aria-selected',
       'true',
     )
 
-    await user.click(screen.getByRole('button', { name: HISTORY_TAB_ALL }))
+    await user.click(screen.getByRole('tab', { name: HISTORY_TAB_ALL }))
     await waitFor(() => {
       expect(screen.getAllByTestId('history-row')).toHaveLength(3)
     })

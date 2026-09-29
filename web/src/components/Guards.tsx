@@ -18,10 +18,10 @@ export function RequireAuth({ children }: { children: ReactNode }) {
 export function ForbiddenPage() {
   return (
     <div
-      className="rounded-lg border border-red-200 bg-red-50 p-6 text-center text-red-800"
+      className="rounded-lg border border-danger-600 bg-danger-100 p-6 text-center text-danger-700"
       data-testid="forbidden"
     >
-      <h1 className="text-lg font-bold">{FORBIDDEN}</h1>
+      <h1 className="text-h2">{FORBIDDEN}</h1>
     </div>
   )
 }
@@ -36,8 +36,8 @@ export function RequireAdmin({ children }: { children: ReactNode }) {
 
 export function NotFoundPage() {
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-6 text-center text-gray-600">
-      <h1 className="text-lg font-bold">{NOT_FOUND}</h1>
+    <div className="rounded-lg border border-line bg-surface p-6 text-center text-ink-700">
+      <h1 className="text-h2">{NOT_FOUND}</h1>
     </div>
   )
 }

@@ -21,7 +21,7 @@ export function AdminSessionDetailPage() {
 
   return (
     <section className="space-y-4">
-      <Link to="/admin/sessions" className="text-sm text-teal-700 hover:underline">
+      <Link to="/admin/sessions" className="text-body-strong text-primary-600 hover:underline">
         {ADMIN_SESSIONS_TITLE}
       </Link>
 

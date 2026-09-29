@@ -39,7 +39,7 @@ interface MetricColumn {
   danger?: (row: MetricsRow) => boolean
 }
 
-const DASH = <span className="text-gray-400">—</span>
+const DASH = <span className="text-ink-400">—</span>
 
 function totalSafetyFlags(row: MetricsRow): number {
   return SAFETY_FLAG_KEYS_ORDER.reduce((total, key) => total + row.safety_flag_counts[key], 0)
@@ -50,7 +50,7 @@ export const METRIC_COLUMNS: MetricColumn[] = [
     key: 'label',
     label: ADMIN_COL_LABEL,
     sortValue: (row) => row.label,
-    render: (row) => <span className="font-medium text-gray-900">{row.label}</span>,
+    render: (row) => <span className="text-body-strong text-ink-900">{row.label}</span>,
   },
   {
     key: 'architecture',
@@ -79,7 +79,7 @@ export const METRIC_COLUMNS: MetricColumn[] = [
     label: ADMIN_COL_UNDERTRIAGE,
     sortValue: (row) => row.undertriage_rate,
     render: (row) => (
-      <span className={clsx((row.undertriage_rate ?? 0) > 0 && 'font-semibold text-red-600')}>
+      <span className={clsx((row.undertriage_rate ?? 0) > 0 && 'font-semibold text-danger-700')}>
         {faPercent(row.undertriage_rate)}
       </span>
     ),
@@ -217,10 +217,10 @@ export function MetricsTable({ rows }: { rows: MetricsRow[] }) {
   }
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
-      <table className="w-full border-collapse text-sm" data-testid="metrics-table">
+    <div className="overflow-x-auto rounded-lg border border-line bg-surface">
+      <table className="w-full border-collapse text-body" data-testid="metrics-table">
         <thead>
-          <tr className="bg-gray-50">
+          <tr className="bg-canvas">
             {METRIC_COLUMNS.map((column) => {
               const active = sort?.key === column.key
               return (
@@ -230,12 +230,12 @@ export function MetricsTable({ rows }: { rows: MetricsRow[] }) {
                   aria-sort={
                     active ? (sort.direction === 'asc' ? 'ascending' : 'descending') : 'none'
                   }
-                  className="border-b border-gray-200 px-2 py-2 text-start align-bottom font-medium whitespace-nowrap text-gray-600"
+                  className="border-b border-line px-2 py-2 text-start align-bottom text-caption font-semibold whitespace-nowrap text-ink-500"
                 >
                   <button
                     type="button"
                     onClick={() => toggleSort(column.key)}
-                    className="inline-flex items-center gap-1 hover:text-gray-900"
+                    className="inline-flex items-center gap-1 hover:text-ink-900"
                   >
                     {column.label}
                     {active ? (
@@ -245,7 +245,7 @@ export function MetricsTable({ rows }: { rows: MetricsRow[] }) {
                         <ArrowDown aria-hidden="true" className="h-3.5 w-3.5" />
                       )
                     ) : (
-                      <ChevronsUpDown aria-hidden="true" className="h-3.5 w-3.5 text-gray-300" />
+                      <ChevronsUpDown aria-hidden="true" className="h-3.5 w-3.5 text-ink-400" />
                     )}
                   </button>
                 </th>
@@ -255,9 +255,9 @@ export function MetricsTable({ rows }: { rows: MetricsRow[] }) {
         </thead>
         <tbody>
           {sortedRows.map((row) => (
-            <tr key={row.key} className="border-b border-gray-100 last:border-0" data-testid="metrics-row">
+            <tr key={row.key} className="border-b border-line last:border-0" data-testid="metrics-row">
               {METRIC_COLUMNS.map((column) => (
-                <td key={column.key} className="px-2 py-2 whitespace-nowrap text-gray-800">
+                <td key={column.key} className="px-2 py-2 whitespace-nowrap text-ink-700 tabular-nums">
                   {column.render(row)}
                 </td>
               ))}

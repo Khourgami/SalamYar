@@ -1,22 +1,23 @@
 import { useState } from 'react'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
-import clsx from 'clsx'
 import { useNavigate } from 'react-router-dom'
 
 import { listSessions } from '@/api/endpoints'
 import { EmptyState, ErrorState, LoadingState } from '@/components/States'
 import { TriageBadge } from '@/components/session/TriageBadge'
+import { Badge } from '@/components/ui/Badge'
+import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { SESSION_STATUS_LABELS } from '@/i18n/labels'
 import {
   HISTORY_COL_DATE,
   HISTORY_COL_DOCTOR,
   HISTORY_COL_EVALUATED,
   HISTORY_COL_FIRST_MESSAGE,
-  HISTORY_EVALUATED_NO,
-  HISTORY_EVALUATED_YES,
-  HISTORY_EMPTY,
   HISTORY_COL_RESULT,
   HISTORY_COL_STATUS,
+  HISTORY_EMPTY,
+  HISTORY_EVALUATED_NO,
+  HISTORY_EVALUATED_YES,
   HISTORY_NO_FIRST_MESSAGE,
   HISTORY_TAB_ALL,
   HISTORY_TAB_UNEVALUATED,
@@ -26,12 +27,14 @@ import { faDateTime, truncate } from '@/lib/format'
 
 type HistoryTab = 'all' | 'unevaluated'
 
-const TABS: { key: HistoryTab; label: string }[] = [
-  { key: 'all', label: HISTORY_TAB_ALL },
-  { key: 'unevaluated', label: HISTORY_TAB_UNEVALUATED },
+const TABS: { value: HistoryTab; label: string }[] = [
+  { value: 'all', label: HISTORY_TAB_ALL },
+  { value: 'unevaluated', label: HISTORY_TAB_UNEVALUATED },
 ]
 
-/** UI_SPEC §3.4 — the current user's sessions, with clickable rows. */
+const TH = 'border-b border-line px-3 py-2 text-start text-caption font-semibold text-ink-500'
+
+/** UI_SPEC §3.4 / DESIGN_SYSTEM §6.7 — the current user's sessions, with clickable rows. */
 export function HistoryPage() {
   const [tab, setTab] = useState<HistoryTab>('all')
   const navigate = useNavigate()
@@ -51,53 +54,24 @@ export function HistoryPage() {
   const items = sessionsQuery.data?.items ?? []
 
   return (
-    <section className="space-y-4">
-      <h1 className="text-lg font-bold text-gray-900">{HISTORY_TITLE}</h1>
+    <section className="flex flex-col gap-4">
+      <h1 className="text-h1 text-primary-900">{HISTORY_TITLE}</h1>
 
-      <div role="group" aria-label={HISTORY_TITLE} className="flex gap-2">
-        {TABS.map((item) => (
-          <button
-            key={item.key}
-            type="button"
-            aria-pressed={tab === item.key}
-            onClick={() => setTab(item.key)}
-            className={clsx(
-              'rounded border px-3 py-1.5 text-sm',
-              tab === item.key
-                ? 'border-teal-700 bg-teal-50 font-semibold text-teal-800'
-                : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50',
-            )}
-          >
-            {item.label}
-          </button>
-        ))}
-      </div>
+      <SegmentedControl label={HISTORY_TITLE} mode="tabs" options={TABS} value={tab} onChange={setTab} />
 
       {items.length === 0 ? (
         <EmptyState message={HISTORY_EMPTY} />
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
-          <table className="w-full min-w-[44rem] border-collapse text-sm" data-testid="history-table">
+        <div className="overflow-x-auto rounded-lg border border-line bg-surface">
+          <table className="w-full min-w-[44rem] border-collapse text-body" data-testid="history-table">
             <thead>
-              <tr className="bg-gray-50 text-gray-600">
-                <th className="border-b border-gray-200 px-3 py-2 text-start font-medium">
-                  {HISTORY_COL_DOCTOR}
-                </th>
-                <th className="border-b border-gray-200 px-3 py-2 text-start font-medium">
-                  {HISTORY_COL_DATE}
-                </th>
-                <th className="border-b border-gray-200 px-3 py-2 text-start font-medium">
-                  {HISTORY_COL_FIRST_MESSAGE}
-                </th>
-                <th className="border-b border-gray-200 px-3 py-2 text-start font-medium">
-                  {HISTORY_COL_STATUS}
-                </th>
-                <th className="border-b border-gray-200 px-3 py-2 text-start font-medium">
-                  {HISTORY_COL_RESULT}
-                </th>
-                <th className="border-b border-gray-200 px-3 py-2 text-start font-medium">
-                  {HISTORY_COL_EVALUATED}
-                </th>
+              <tr className="bg-canvas">
+                <th className={TH}>{HISTORY_COL_DOCTOR}</th>
+                <th className={TH}>{HISTORY_COL_DATE}</th>
+                <th className={TH}>{HISTORY_COL_FIRST_MESSAGE}</th>
+                <th className={TH}>{HISTORY_COL_STATUS}</th>
+                <th className={TH}>{HISTORY_COL_RESULT}</th>
+                <th className={TH}>{HISTORY_COL_EVALUATED}</th>
               </tr>
             </thead>
             <tbody>
@@ -113,35 +87,28 @@ export function HistoryPage() {
                       navigate(`/sessions/${session.id}`)
                     }
                   }}
-                  className="cursor-pointer border-b border-gray-100 last:border-0 hover:bg-gray-50 focus:bg-gray-50 focus:outline-none"
+                  className="min-h-12 cursor-pointer border-b border-line last:border-0 hover:bg-primary-100 focus:bg-primary-100 focus:outline-none"
                   data-testid="history-row"
                 >
                   <td className="px-3 py-2">{session.agent.display_name}</td>
-                  <td className="px-3 py-2 whitespace-nowrap text-gray-600">
+                  <td className="px-3 py-2 whitespace-nowrap text-ink-500">
                     {faDateTime(session.created_at, { dateOnly: true })}
                   </td>
-                  <td className="max-w-xs truncate px-3 py-2 text-gray-600">
+                  <td className="max-w-xs truncate px-3 py-2 text-ink-500">
                     {session.first_patient_message
                       ? truncate(session.first_patient_message, 60)
                       : HISTORY_NO_FIRST_MESSAGE}
                   </td>
-                  <td className="px-3 py-2 whitespace-nowrap text-gray-700">
+                  <td className="px-3 py-2 whitespace-nowrap text-ink-700">
                     {SESSION_STATUS_LABELS[session.status]}
                   </td>
                   <td className="px-3 py-2 whitespace-nowrap">
                     <TriageBadge level={session.final_triage_level} />
                   </td>
                   <td className="px-3 py-2 whitespace-nowrap">
-                    <span
-                      className={clsx(
-                        'rounded-full border px-2 py-0.5 text-xs',
-                        session.evaluated
-                          ? 'border-green-200 bg-green-50 text-green-700'
-                          : 'border-gray-300 bg-gray-100 text-gray-600',
-                      )}
-                    >
+                    <Badge tone={session.evaluated ? 'success' : 'neutral'}>
                       {session.evaluated ? HISTORY_EVALUATED_YES : HISTORY_EVALUATED_NO}
-                    </span>
+                    </Badge>
                   </td>
                 </tr>
               ))}
