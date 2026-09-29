@@ -28,6 +28,8 @@ export const NOT_FOUND = 'این صفحه پیدا نشد.'
 
 /* ------------------------------ login ------------------------------ */
 
+export const LOGIN_TITLE = 'ورود به سامانه'
+export const LOGIN_BRAND_LINE = 'ارزیابی پزشک\u200cهای مجازی تریاژ توسط پزشکان'
 export const LOGIN_USERNAME = 'نام کاربری'
 export const LOGIN_PASSWORD = 'رمز عبور'
 export const LOGIN_SUBMIT = 'ورود'

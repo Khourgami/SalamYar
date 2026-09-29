@@ -1,4 +1,4 @@
-import { useId } from 'react'
+import { forwardRef, useId } from 'react'
 import type { InputHTMLAttributes } from 'react'
 
 import { cn } from '@/components/ui/cn'
@@ -23,14 +23,10 @@ export interface TextFieldProps extends InputHTMLAttributes<HTMLInputElement> {
 }
 
 /** DESIGN_SYSTEM §5.2 */
-export function TextField({
-  id,
-  label,
-  error,
-  helperText,
-  className,
-  ...rest
-}: TextFieldProps) {
+export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function TextField(
+  { id, label, error, helperText, className, ...rest },
+  ref,
+) {
   const generatedId = useId()
   const fieldId = id ?? generatedId
   const errorId = `${fieldId}-error`
@@ -46,6 +42,7 @@ export function TextField({
       </label>
       <input
         {...rest}
+        ref={ref}
         id={fieldId}
         aria-invalid={error ? true : undefined}
         aria-describedby={describedBy || undefined}
@@ -63,4 +60,4 @@ export function TextField({
       ) : null}
     </div>
   )
-}
+})

@@ -7,6 +7,8 @@ describe('App', () => {
   it('renders the application shell', () => {
     render(<App />)
 
-    expect(screen.getByText('آزمایشگاه پزشک مجازی')).toBeInTheDocument()
+    // the redesigned login page shows the app name in both the compact (mobile) and the
+    // full (desktop) brand panel, so more than one match is expected
+    expect(screen.getAllByText('آزمایشگاه پزشک مجازی').length).toBeGreaterThan(0)
   })
 })
