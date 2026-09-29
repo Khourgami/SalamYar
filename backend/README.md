@@ -1,6 +1,6 @@
 # AI Triage Agent Lab — Backend
 
-FastAPI + SQLite backend for the triage agent lab (PoC). It implements `../docs/API_CONTRACT.md` v1,
+FastAPI + SQLite backend for the triage agent lab (PoC). It implements `../docs/API_CONTRACT.md` v1.1,
 the agent framework, architectures A (`simple`) and B (`structured`), the deterministic guard,
 LLM tracing, admin metrics, and CSV export. Design: `docs/BACKEND_ARCHITECTURE.md`,
 `docs/AGENT_SPEC.md`. Decisions: `docs/decisions.md`. Status: `docs/progress.md`.
@@ -74,6 +74,18 @@ are the same: at least 8 characters, no duplicate username. PowerShell:
 `smoke-test` checks every selected agent's model slug against `GET /models`, runs a scripted
 two-message conversation plus a forced conclusion through the real architectures, prints a table,
 and exits non-zero if any agent fails.
+
+Run it before physicians are onboarded (it needs `OPENROUTER_API_KEY` in `.env`, and each run
+costs real money):
+
+```powershell
+uv run python -m app.cli smoke-test --include-disabled   # all 12 agents
+uv run python -m app.cli smoke-test --agent b-sonnet5    # one agent
+```
+
+If a provider rejects a parameter, the fix is a per-model config change in `config/agents.yaml`
+(`send_temperature: false`, `output_mode: prompt_only`, or `reasoning_effort: null`), following
+the rule table from the phase-2 prompt (D-025). Prompts are never changed for this.
 
 ## Agents
 

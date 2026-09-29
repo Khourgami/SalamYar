@@ -3,7 +3,12 @@
 Updated by the backend coder at the end of every task.
 
 ## Current status
-**Phase 2 — Contract v1.1, real-model verification, integration readiness: 🚧 in progress (2026-09-30).**
+**Phase 2 — Contract v1.1, real-model verification, integration readiness: ✅ complete except T6 (blocked: no `OPENROUTER_API_KEY`) (2026-09-30).** Report: `reports/phase-2-integration-readiness.md`.
+
+- 296 tests pass; coverage 98% (`app/`), guard 100% line+branch; ruff clean; `docker compose up --build` serves the app on :80.
+- **Action needed (product owner):** add `OPENROUTER_API_KEY` (+ `JWT_SECRET`) to `backend/.env`, then the backend runs T6 steps 2–6 (smoke test ×2, ≤ USD 3; add per-turn latency to the smoke table first).
+- Web integration: `uv run python -m app.dev_server --seed` (users `doctor`/`doctor2`/`admin`, 1.5 s delay, «خطا» → one 502).
+- Next: T6 smoke test once the key exists; then M2 integration report (product side) and M3.
 
 | Task | Scope | Status |
 |---|---|---|
@@ -14,13 +19,13 @@ Updated by the backend coder at the end of every task.
 | T5 | Dev server: `data/dev.db`, `--seed`, `--delay-ms`, «خطا» trigger; `create-user --password-stdin` (D-029) | ✅ Done |
 | T6 | Gemini slugs and the real smoke test (D-022, D-025) | ⛔ blocked (no key) — step 1 done: Gemini slugs confirmed and set (B-030) |
 | T7 | Root `docker-compose.yml` | ✅ Done |
-| T8 | Docs and phase report | ⏳ Todo |
+| T8 | Docs and phase report | ✅ Done |
 
 ## Phase 1 status
 **Phase 1 — Backend core: ✅ complete (2026-09-30).** Report: `reports/phase-1-backend-core.md`.
 
 - 243 tests pass; coverage 97% (`app/`), 100% line+branch for `guard.py`; ruff clean; Docker image builds.
-- **Action needed (product owner):** `google/gemini-3-flash` and `google/gemini-3.1-pro` do not exist on
+- ~~**Action needed (product owner):**~~ *(resolved in phase 2 T6, B-030)* `google/gemini-3-flash` and `google/gemini-3.1-pro` do not exist on
   OpenRouter (public `/models`, 2026-09-30) — agents `b-gemini3flash`, `b-gemini31pro` (enabled) and
   `a-gemini3flash`, `a-gemini31pro` will fail until `config/agents.yaml` is fixed. Existing candidates
   include `google/gemini-3-flash-preview` and `google/gemini-3.1-pro-preview` (not changed; no guessing).
@@ -68,3 +73,4 @@ Per task: `uv run pytest -q` + `uv run ruff check .`, update this file, commit (
 - 2026-09-30 — Phase 2 T5 — dev server `--db` (default `data/dev.db`, `lab.db` refused), `--seed`, `--delay-ms` (default 1500), «خطا» one-shot failure (session id via ASGI contextvar + transcript hash), `create-user --password-stdin`, README (B-027…B-029); manual run: `app.dev_server --seed` without `.env` → login `doctor` 200, one turn 1.57 s; PowerShell pipe to `--password-stdin` verified — 296 tests pass
 - 2026-09-30 — Phase 2 T6 — blocked (no key): no `backend/.env`. Step 1 only: public `/models` confirms `google/gemini-3-flash-preview` and `google/gemini-3.1-pro-preview`, set for the 4 Gemini agents (B-030); smoke test, table extension (per-turn latency is missing), and provider fixes not run — 296 tests pass
 - 2026-09-30 — Phase 2 T7 — root `docker-compose.yml` (backend + web); verified with a temporary `.env`: build OK, `GET /` 200 HTML, `GET /api/v1/agents` 401 contract shape, user via `exec -T backend uv run python -m app.cli … --password-stdin`, login 200, login still 200 after `restart backend`, `down` (B-031); README compose section — 296 tests pass
+- 2026-09-30 — Phase 2 T8 — README (v1.1, dev server, `--password-stdin`, compose, smoke test), progress, decisions, phase report `reports/phase-2-integration-readiness.md` — 296 tests pass, guard 100%, ruff clean
