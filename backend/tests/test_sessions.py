@@ -381,3 +381,24 @@ def test_safety_floor_result_text(lab: Lab) -> None:
     [assessment] = _db_rows(m.Assessment, session_id=sid)
     assert loads(assessment.raw_result_json)["triage_level"] == "SELF_CARE"
     assert loads(assessment.result_json)["triage_level"] == "EMERGENCY_NOW"
+
+
+def test_structured_conclude_farewell_not_stored_or_shown(lab: Lab) -> None:
+    """D-024: the concluding TurnDecision's text is discarded; one turn call, no repair."""
+    farewell = "خداحافظ، مراقب خودتان باشید."
+    sid = lab.create("b-struct")["id"]
+    lab.llm.push(fx.js(fx.turn_decision("conclude", message_to_patient=farewell)), ASSESSMENT)
+    r = lab.send(sid, "سردرد دارم")
+    assert r.status_code == 200, r.text
+    session = r.json()["session"]
+    assert session["status"] == "completed"
+    assert all(farewell not in msg["text"] for msg in session["messages"])
+    (bs,) = session["backstage"]
+    assert bs["next_action"] == "conclude" and "message_to_patient" not in bs
+    with app_db.session_factory()() as s:
+        purposes = [
+            c.purpose for c in s.scalars(select(m.LLMCall).where(m.LLMCall.session_id == sid))
+        ]
+        stored = [b.data_json for b in s.scalars(select(m.TurnBackstage))]
+    assert sorted(purposes) == ["assessment", "turn"]
+    assert all("message_to_patient" not in d for d in stored)

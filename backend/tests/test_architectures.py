@@ -251,3 +251,31 @@ async def test_structured_uses_agent_options_for_guard() -> None:
     ctx, _ = _structured_ctx(options=AgentOptions(safety_floor=False).model_dump())
     out = await StructuredArchitecture(llm).force_conclude(ctx, "evaluator_ended")
     assert out.assessment is not None and out.assessment.triage_level is TriageLevel.URGENT_24H
+
+
+async def test_structured_conclude_with_farewell_parses_first_time() -> None:
+    """D-024: a farewell on conclude needs no repair call and is never stored or shown."""
+    farewell = "خداحافظ، مراقب خودتان باشید."
+    concl = fx.turn_decision("conclude", message_to_patient=farewell)
+    llm = FakeLLM([fx.js(concl), fx.js(fx.assessment())])
+    ctx, _ = _structured_ctx()
+    out = await StructuredArchitecture(llm).next_turn(ctx)
+
+    traces = ctx.traces  # type: ignore[attr-defined]
+    assert [t.purpose for t in traces] == ["turn", "assessment"]
+    assert all(t.parsed_ok for t in traces)
+    assert len(llm.requests) == 2  # exactly one turn call, no repair
+    assert out.kind == "result"
+    assert "message_to_patient" not in out.backstage
+    assert farewell not in out.agent_message
+
+
+async def test_structured_ask_with_empty_message_triggers_repair() -> None:
+    bad = fx.turn_decision("ask", message_to_patient="")
+    llm = FakeLLM([fx.js(bad), fx.js(fx.turn_decision("ask"))])
+    ctx, _ = _structured_ctx()
+    out = await StructuredArchitecture(llm).next_turn(ctx)
+
+    traces = ctx.traces  # type: ignore[attr-defined]
+    assert [(t.purpose, t.parsed_ok) for t in traces] == [("turn", False), ("repair", True)]
+    assert out.kind == "question"

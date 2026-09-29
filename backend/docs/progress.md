@@ -10,7 +10,7 @@ Updated by the backend coder at the end of every task.
 | T1 | Repository housekeeping (root repo, no tracked secrets, B-001 superseded) | ✅ Done |
 | T2 | Error codes: 409 `EVALUATION_LOCKED` on second evaluation, 405/500 shape (D-018, D-019) | ✅ Done |
 | T3 | Owner-only session endpoints for every role, list order (D-020) | ✅ Done |
-| T4 | `TurnDecision` accepts a message on conclude (D-024) | ⏳ Todo |
+| T4 | `TurnDecision` accepts a message on conclude (D-024) | ✅ Done |
 | T5 | Dev server: `data/dev.db`, `--seed`, `--delay-ms`, «خطا» trigger; `create-user --password-stdin` (D-029) | ⏳ Todo |
 | T6 | Gemini slugs and the real smoke test (D-022, D-025) | ⏳ Todo |
 | T7 | Root `docker-compose.yml` | ⏳ Todo |
@@ -64,3 +64,4 @@ Per task: `uv run pytest -q` + `uv run ruff check .`, update this file, commit (
 - 2026-09-30 — Phase 2 T1 — root repository verified (`git rev-parse --show-toplevel` = project root, no `backend/.git`, no tracked `.env`/`backend/data/*`); B-001 superseded by D-027; phase-2 task table added — 243 tests pass (baseline)
 - 2026-09-30 — Phase 2 T2 — second evaluation → 409 `EVALUATION_LOCKED` (B-024; `test_evaluation_only_once` updated); new tests for 405 on a real route and 500 via a failing dependency (no stack trace); CCR #1/#2 accepted — 245 tests pass
 - 2026-09-30 — Phase 2 T3 — GET session/messages/finish now owner-only for admins too (B-025), lists ordered `created_at` desc, `id` desc; new `tests/test_access.py` (6 endpoints × owner/other evaluator/admin matrix, unknown id → 404, admin read via `/admin/sessions/{id}`, ordering incl. equal timestamps); changed tests `test_sessions.py::test_get_session_access` (admin now gets 403 instead of 200 with reveal) and `test_admin.py::test_admin_sessions_list_and_detail` (admin `GET /sessions/{id}` on another user's session now 403 instead of 200 with empty feedback) — 279 tests pass
+- 2026-09-30 — Phase 2 T4 — `TurnDecision` accepts and discards a message on conclude (B-026, B-004 partly superseded); `test_turn_decision_conclude_requires_empty_message` replaced by `..._accepts_and_discards_message`; new tests: farewell parses first time (no repair), empty ask → repair, stored/API backstage without `message_to_patient` — 284 tests pass

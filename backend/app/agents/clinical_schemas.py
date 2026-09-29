@@ -103,13 +103,15 @@ class TurnDecision(BaseModel):
     message_to_patient: str
 
     @model_validator(mode="after")
-    def _message_iff_asking(self) -> Self:
-        asking = self.next_action in ("ask", "clarify")
-        has_message = bool(self.message_to_patient.strip())
-        if asking and not has_message:
-            raise ValueError("message_to_patient must be non-empty when next_action is ask/clarify")
-        if not asking and has_message:
-            raise ValueError('message_to_patient must be "" when next_action is conclude')
+    def _message_when_asking(self) -> Self:
+        if self.next_action in ("ask", "clarify"):
+            if not self.message_to_patient.strip():
+                raise ValueError(
+                    "message_to_patient must be non-empty when next_action is ask/clarify"
+                )
+        else:
+            # D-024: any text on conclude is accepted and discarded (never shown or stored).
+            self.message_to_patient = ""
         return self
 
 

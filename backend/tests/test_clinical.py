@@ -99,9 +99,10 @@ def test_turn_decision_asking_requires_message(action: str) -> None:
         TurnDecision.model_validate(fx.turn_decision(action, message_to_patient="  "))
 
 
-def test_turn_decision_conclude_requires_empty_message() -> None:
-    with pytest.raises(ValidationError, match='must be ""'):
-        TurnDecision.model_validate(fx.turn_decision("conclude", message_to_patient="خداحافظ"))
+@pytest.mark.parametrize("text", ["", "  ", "خداحافظ، مراقب خودتان باشید."])
+def test_turn_decision_conclude_accepts_and_discards_message(text: str) -> None:
+    td = TurnDecision.model_validate(fx.turn_decision("conclude", message_to_patient=text))
+    assert td.message_to_patient == ""  # D-024
 
 
 def test_turn_decision_requires_stop_reason_key() -> None:
