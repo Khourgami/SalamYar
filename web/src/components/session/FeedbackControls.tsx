@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import clsx from 'clsx'
-import { NotebookPen } from 'lucide-react'
+import { ThumbsDown, ThumbsUp } from 'lucide-react'
 
 import { deleteFeedback, putFeedback } from '@/api/endpoints'
 import type { Feedback, Message } from '@/api/types'
+import { dropFeedback, replaceFeedback, updateSession } from '@/components/session/sessionCache'
+import { Button } from '@/components/ui/Button'
+import { cn } from '@/components/ui/cn'
 import {
   CHAT_FEEDBACK_CANCEL,
   CHAT_FEEDBACK_DOWN,
@@ -14,7 +16,6 @@ import {
   CHAT_FEEDBACK_UP,
   CHAT_NOTE_NEEDS_RATING,
 } from '@/i18n/uiText'
-import { dropFeedback, replaceFeedback, updateSession } from '@/components/session/sessionCache'
 
 export interface FeedbackControlsProps {
   sessionId: string
@@ -24,10 +25,7 @@ export interface FeedbackControlsProps {
   readOnly: boolean
 }
 
-/**
- * UI_SPEC §3.3 — 👍/👎 plus an inline note under every `question`/`result` agent message.
- * Clicking the active rating again removes it (`DELETE`).
- */
+/** DESIGN_SYSTEM §5.11 — two 32px toggle buttons plus a ghost «یادداشت» and an inline note. */
 export function FeedbackControls({
   sessionId,
   message,
@@ -79,10 +77,18 @@ export function FeedbackControls({
 
   if (readOnly) {
     return (
-      <div className="mt-1 flex flex-col items-start gap-1 text-xs text-gray-500">
-        {rating ? <span>{rating === 'up' ? '👍' : '👎'}</span> : null}
-        {feedback?.note ? <span className="text-gray-600">{feedback.note}</span> : null}
-        <span className="text-gray-400">{CHAT_FEEDBACK_READ_ONLY}</span>
+      <div className="mt-1 flex flex-col items-start gap-1 text-caption text-ink-500">
+        {rating ? (
+          <span className="inline-flex items-center gap-1">
+            {rating === 'up' ? (
+              <ThumbsUp aria-hidden="true" className="h-3.5 w-3.5" />
+            ) : (
+              <ThumbsDown aria-hidden="true" className="h-3.5 w-3.5" />
+            )}
+          </span>
+        ) : null}
+        {feedback?.note ? <span className="text-ink-700">{feedback.note}</span> : null}
+        <span className="text-ink-400">{CHAT_FEEDBACK_READ_ONLY}</span>
       </div>
     )
   }
@@ -96,14 +102,14 @@ export function FeedbackControls({
           aria-pressed={rating === 'up'}
           disabled={busy}
           onClick={() => toggleRating('up')}
-          className={clsx(
-            'rounded border px-2 py-0.5 text-sm leading-none transition-colors disabled:opacity-50',
+          className={cn(
+            'inline-flex h-8 w-8 items-center justify-center rounded-md border transition-colors disabled:opacity-50',
             rating === 'up'
-              ? 'border-green-300 bg-green-50'
-              : 'border-gray-200 hover:bg-gray-50',
+              ? 'border-success-600 bg-success-100 text-success-700'
+              : 'border-line bg-surface text-ink-500 hover:bg-primary-100',
           )}
         >
-          👍
+          <ThumbsUp aria-hidden="true" className="h-4 w-4" />
         </button>
         <button
           type="button"
@@ -111,21 +117,22 @@ export function FeedbackControls({
           aria-pressed={rating === 'down'}
           disabled={busy}
           onClick={() => toggleRating('down')}
-          className={clsx(
-            'rounded border px-2 py-0.5 text-sm leading-none transition-colors disabled:opacity-50',
-            rating === 'down' ? 'border-red-300 bg-red-50' : 'border-gray-200 hover:bg-gray-50',
+          className={cn(
+            'inline-flex h-8 w-8 items-center justify-center rounded-md border transition-colors disabled:opacity-50',
+            rating === 'down'
+              ? 'border-danger-600 bg-danger-100 text-danger-700'
+              : 'border-line bg-surface text-ink-500 hover:bg-primary-100',
           )}
         >
-          👎
+          <ThumbsDown aria-hidden="true" className="h-4 w-4" />
         </button>
-        <button
-          type="button"
+        <Button
+          variant="ghost"
+          className="ms-1 h-8 px-2"
           onClick={() => setNoteOpen((open) => !open)}
-          className="ms-1 inline-flex items-center gap-1 text-xs text-teal-700 hover:underline"
         >
-          <NotebookPen aria-hidden="true" className="h-3.5 w-3.5" />
           {CHAT_FEEDBACK_NOTE}
-        </button>
+        </Button>
       </div>
 
       {noteOpen ? (
@@ -136,29 +143,24 @@ export function FeedbackControls({
             onChange={(event) => setNote(event.target.value)}
             rows={2}
             maxLength={1000}
-            className="w-full rounded border border-gray-300 px-2 py-1 text-xs focus:border-teal-500 focus:outline-none"
+            className="w-full rounded-md border border-line bg-surface px-2 py-1 text-caption text-ink-900 focus:border-primary-600 focus:outline-none focus:ring-2 focus:ring-primary-600"
           />
-          {!rating ? <p className="text-xs text-amber-700">{CHAT_NOTE_NEEDS_RATING}</p> : null}
+          {!rating ? <p className="text-caption text-warning-700">{CHAT_NOTE_NEEDS_RATING}</p> : null}
           <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={saveNote}
-              disabled={busy || !rating}
-              className="rounded bg-teal-700 px-2 py-1 text-xs font-semibold text-white hover:bg-teal-800 disabled:bg-gray-300"
-            >
+            <Button disabled={busy || !rating} onClick={saveNote} className="h-8 px-2">
               {CHAT_FEEDBACK_SAVE}
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
+              variant="secondary"
               onClick={() => setNoteOpen(false)}
-              className="rounded border border-gray-300 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50"
+              className="h-8 px-2"
             >
               {CHAT_FEEDBACK_CANCEL}
-            </button>
+            </Button>
           </div>
         </div>
       ) : feedback?.note ? (
-        <p className="text-xs text-gray-600">{feedback.note}</p>
+        <p className="text-caption text-ink-700">{feedback.note}</p>
       ) : null}
     </div>
   )

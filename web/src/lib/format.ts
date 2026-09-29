@@ -69,6 +69,20 @@ export function faDateTime(
   return formatter.format(date)
 }
 
+/** `۱۱:۴۵` — time only, Persian digits (the chat bubbles show it under the text). */
+export function faTime(
+  iso: string | null | undefined,
+  options: { timeZone?: string } = {},
+): string {
+  if (!iso) return EMPTY_VALUE
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return EMPTY_VALUE
+  return new Intl.DateTimeFormat(FA_LOCALE, {
+    timeStyle: 'short',
+    timeZone: options.timeZone,
+  }).format(date)
+}
+
 /** `۲۲ دقیقه و ۵ ثانیه` — a duration in seconds. */
 export function faDuration(seconds: number | null | undefined): string {
   if (!isFormattable(seconds)) return EMPTY_VALUE

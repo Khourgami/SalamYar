@@ -1,14 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { KeyboardEvent } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Send } from 'lucide-react'
+import { ChevronRight, Send, Stethoscope } from 'lucide-react'
+import { Link } from 'react-router-dom'
 
 import { ApiError, isApiError } from '@/api/client'
 import { finishSession, postMessage } from '@/api/endpoints'
 import type { SessionDetail, TurnResponse } from '@/api/types'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
-import { InlineSpinner } from '@/components/States'
-import { Toast } from '@/components/ui/Toast'
 import { MessageBubble } from '@/components/session/MessageBubble'
 import {
   appendAgentErrorMessages,
@@ -17,7 +16,11 @@ import {
   updateSession,
   writeSession,
 } from '@/components/session/sessionCache'
-import { faNumber } from '@/lib/format'
+import { Badge } from '@/components/ui/Badge'
+import { Button } from '@/components/ui/Button'
+import { Card } from '@/components/ui/Card'
+import { Toast } from '@/components/ui/Toast'
+import { SESSION_STATUS_LABELS } from '@/i18n/labels'
 import {
   CHAT_FINISH,
   CHAT_FINISH_CONFIRM,
@@ -26,10 +29,12 @@ import {
   CHAT_READ_ONLY,
   CHAT_SEND,
   CHAT_TYPING,
+  NAV_DOCTORS,
   NETWORK_ERROR,
   TURN_IN_PROGRESS,
   questionsCountText,
 } from '@/i18n/uiText'
+import { faNumber } from '@/lib/format'
 
 export interface ChatPanelProps {
   session: SessionDetail
@@ -43,6 +48,7 @@ export function ChatPanel({ session, readOnly = false }: ChatPanelProps) {
   const [toast, setToast] = useState<string | null>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const bottomRef = useRef<HTMLDivElement | null>(null)
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
 
   const isCompleted = session.status === 'completed'
   const locked = readOnly || isCompleted
@@ -59,7 +65,7 @@ export function ChatPanel({ session, readOnly = false }: ChatPanelProps) {
 
       if (apiError.code === 'AGENT_ERROR') {
         // The patient message was saved and an `error` agent message appended server-side;
-        // `الررسال دوباره` resends the same text without duplicating it.
+        // «ارسال دوباره» resends the same text without duplicating it.
         const body = apiError.agentErrorBody
         if (body) {
           updateSession(queryClient, session.id, (current) =>
@@ -110,6 +116,15 @@ export function ChatPanel({ session, readOnly = false }: ChatPanelProps) {
     }
   }, [messages.length, sendMutation.isPending, finishMutation.isPending])
 
+  // DESIGN_SYSTEM §6.3 — the composer grows from 1 to 5 lines.
+  useEffect(() => {
+    const element = textareaRef.current
+    if (!element) return
+    element.style.height = 'auto'
+    const next = Math.min(element.scrollHeight, 128)
+    element.style.height = next > 0 ? `${next}px` : 'auto'
+  }, [draft])
+
   function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault()
@@ -120,24 +135,41 @@ export function ChatPanel({ session, readOnly = false }: ChatPanelProps) {
   const canSend = !locked && !busy && draft.trim() !== ''
 
   return (
-    <section className="rounded-lg border border-gray-200 bg-white shadow-sm">
-      <header className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 px-4 py-3">
-        <h2 className="text-base font-semibold text-gray-900">{session.agent.display_name}</h2>
-        <div className="flex items-center gap-3">
-          <span className="text-xs text-gray-500" data-testid="questions-counter">
-            {questionsCountText(faNumber(session.questions_asked))}
-          </span>
-          {!readOnly && !isCompleted ? (
-            <button
-              type="button"
-              onClick={() => setConfirmOpen(true)}
-              disabled={busy}
-              className="rounded border border-teal-700 px-3 py-1.5 text-xs font-semibold text-teal-800 hover:bg-teal-50 disabled:opacity-50"
-            >
-              {CHAT_FINISH}
-            </button>
-          ) : null}
-        </div>
+    <Card padded={false} data-testid="chat-panel">
+      <header className="flex flex-wrap items-center gap-3 border-b border-line bg-surface px-4 py-3 lg:sticky lg:top-10 lg:z-10">
+        <Link
+          to="/"
+          className="inline-flex items-center gap-1 text-body-strong text-primary-600 hover:underline"
+        >
+          <ChevronRight aria-hidden="true" className="icon-dir h-4 w-4" />
+          {NAV_DOCTORS}
+        </Link>
+
+        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary-100 text-primary-600">
+          <Stethoscope aria-hidden="true" className="h-4 w-4" />
+        </span>
+        <h2 className="text-h2 text-primary-900">{session.agent.display_name}</h2>
+
+        <span data-testid="session-status">
+          <Badge tone={isCompleted ? 'neutral' : 'success'}>
+            {isCompleted ? SESSION_STATUS_LABELS.completed : SESSION_STATUS_LABELS.active}
+          </Badge>
+        </span>
+
+        <span className="text-caption text-ink-500" data-testid="questions-counter">
+          {questionsCountText(faNumber(session.questions_asked))}
+        </span>
+
+        {!readOnly && !isCompleted ? (
+          <Button
+            variant="secondary"
+            className="ms-auto"
+            disabled={busy}
+            onClick={() => setConfirmOpen(true)}
+          >
+            {CHAT_FINISH}
+          </Button>
+        ) : null}
       </header>
 
       <ol
@@ -160,10 +192,14 @@ export function ChatPanel({ session, readOnly = false }: ChatPanelProps) {
 
         {sendMutation.isPending || finishMutation.isPending ? (
           <li className="flex flex-col items-start gap-1" data-testid="typing-indicator">
-            <span className="text-xs text-gray-500">{session.agent.display_name}</span>
-            <span className="inline-flex items-center gap-2 rounded-2xl border border-teal-100 bg-teal-50 px-4 py-2 text-sm text-gray-700">
-              <InlineSpinner className="text-teal-700" />
-              {CHAT_TYPING}
+            <span className="mb-1 text-caption text-ink-500">{session.agent.display_name}</span>
+            <span className="inline-flex items-center gap-2 rounded-lg rounded-ss-sm border border-line bg-surface px-4 py-3 text-ink-700">
+              <span aria-hidden="true" className="flex gap-1">
+                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-ink-400" />
+                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-ink-400 [animation-delay:150ms]" />
+                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-ink-400 [animation-delay:300ms]" />
+              </span>
+              <span className="sr-only">{CHAT_TYPING}</span>
             </span>
           </li>
         ) : null}
@@ -172,31 +208,33 @@ export function ChatPanel({ session, readOnly = false }: ChatPanelProps) {
       </ol>
 
       {readOnly || isCompleted ? (
-        <footer className="border-t border-gray-200 px-4 py-3 text-xs text-gray-500">
+        <footer className="border-t border-line px-4 py-3 text-caption text-ink-500">
           {CHAT_READ_ONLY}
         </footer>
       ) : (
-        <footer className="border-t border-gray-200 px-4 py-3">
+        <footer className="sticky bottom-0 z-10 border-t border-line bg-surface px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
           <div className="flex items-end gap-2">
             <textarea
+              ref={textareaRef}
               aria-label={CHAT_PLACEHOLDER}
               placeholder={CHAT_PLACEHOLDER}
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
               onKeyDown={handleKeyDown}
-              rows={2}
+              rows={1}
               disabled={busy}
-              className="flex-1 resize-y rounded border border-gray-300 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500 disabled:bg-gray-100"
+              className="max-h-32 min-h-11 flex-1 resize-none rounded-md border border-line bg-surface px-3 py-2 text-body text-ink-900 placeholder:text-ink-400 focus:border-primary-600 focus:outline-none focus:ring-2 focus:ring-primary-600 disabled:bg-disabled-bg"
             />
-            <button
+            <Button
               type="button"
-              onClick={() => handleSend(draft)}
+              size="lg"
+              aria-label={CHAT_SEND}
               disabled={!canSend}
-              className="inline-flex items-center gap-2 rounded bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-gray-300"
+              onClick={() => handleSend(draft)}
             >
-              <Send aria-hidden="true" className="h-4 w-4" />
-              {CHAT_SEND}
-            </button>
+              <Send aria-hidden="true" className="icon-dir h-4 w-4" />
+              <span className="hidden md:inline">{CHAT_SEND}</span>
+            </Button>
           </div>
         </footer>
       )}
@@ -212,6 +250,6 @@ export function ChatPanel({ session, readOnly = false }: ChatPanelProps) {
       />
 
       <Toast message={toast} onDismiss={() => setToast(null)} />
-    </section>
+    </Card>
   )
 }

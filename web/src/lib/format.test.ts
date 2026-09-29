@@ -7,6 +7,7 @@ import {
   faDuration,
   faLatency,
   faNumber,
+  faTime,
   faPercent,
   faPercentValue,
   truncate,
@@ -99,6 +100,14 @@ describe('faDateTime', () => {
     expect(faDateTime(null)).toBe(EMPTY_VALUE)
     expect(faDateTime(undefined)).toBe(EMPTY_VALUE)
     expect(faDateTime('not-a-date')).toBe(EMPTY_VALUE)
+  })
+})
+
+describe('faTime', () => {
+  it('renders the time only with Persian digits', () => {
+    expect(faTime('2026-09-29T07:30:00.000Z', { timeZone: 'UTC' })).toBe('۷:۳۰')
+    expect(faTime(null)).toBe(EMPTY_VALUE)
+    expect(faTime('not-a-date')).toBe(EMPTY_VALUE)
   })
 })
 

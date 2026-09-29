@@ -1,10 +1,12 @@
 import clsx from 'clsx'
-import { RotateCcw } from 'lucide-react'
+import { RotateCcw, Stethoscope } from 'lucide-react'
 
 import type { Feedback, Message, SessionDetail } from '@/api/types'
 import { FeedbackControls } from '@/components/session/FeedbackControls'
 import { isFeedbackLocked } from '@/components/session/sessionCache'
+import { Button } from '@/components/ui/Button'
 import { CHAT_PATIENT_LABEL, CHAT_RESEND } from '@/i18n/uiText'
+import { faTime } from '@/lib/format'
 
 export interface MessageBubbleProps {
   session: SessionDetail
@@ -16,9 +18,9 @@ export interface MessageBubbleProps {
 }
 
 /**
- * UI_SPEC §3.3 — agent bubbles sit on the inline-start side (right in RTL) labelled with the
- * agent's `display_name`; patient bubbles sit on the inline-end side labelled «شما (بیمار)».
- * `error` messages are gray and offer `ارسال دوباره`.
+ * DESIGN_SYSTEM §5.11 / UI_SPEC §3.3 — agent bubbles sit on the inline-start side (right in RTL)
+ * with a neutral avatar and the agent's `display_name`; patient bubbles sit on the inline-end side
+ * labelled «شما (بیمار)». `error` messages are neutral and offer `ارسال دوباره`.
  */
 export function MessageBubble({
   session,
@@ -37,36 +39,44 @@ export function MessageBubble({
       className={clsx('flex flex-col', isAgent ? 'items-start' : 'items-end')}
       data-testid={`message-${message.kind}`}
     >
-      <span className="mb-1 text-xs text-gray-500">
-        {isAgent ? session.agent.display_name : CHAT_PATIENT_LABEL}
-      </span>
+      <div className={clsx('mb-1 flex items-center gap-2', !isAgent && 'flex-row-reverse')}>
+        {isAgent ? (
+          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary-100 text-primary-600">
+            <Stethoscope aria-hidden="true" className="h-3.5 w-3.5" />
+          </span>
+        ) : null}
+        <span className="text-caption text-ink-500">
+          {isAgent ? session.agent.display_name : CHAT_PATIENT_LABEL}
+        </span>
+      </div>
 
       <div
         className={clsx(
-          'max-w-[85%] whitespace-pre-wrap rounded-2xl border px-4 py-2 text-sm leading-6 sm:max-w-[75%]',
+          'max-w-[85%] rounded-lg px-4 py-2 sm:max-w-[620px]',
           isError
-            ? 'border-gray-300 bg-gray-200 text-gray-700'
+            ? 'rounded-ss-sm bg-neutral-100 text-ink-700'
             : isAgent
-              ? 'border-teal-100 bg-teal-50 text-gray-900'
-              : 'border-gray-200 bg-white text-gray-900',
+              ? 'rounded-ss-sm border border-line bg-surface text-ink-900'
+              : 'rounded-se-sm bg-primary-100 text-ink-900',
         )}
       >
-        {message.text}
-      </div>
+        <p className="whitespace-pre-wrap text-body-l">{message.text}</p>
 
-      {isError ? (
-        <div className="mt-1">
-          <button
-            type="button"
-            disabled={resendDisabled}
-            onClick={() => onResend(message.text)}
-            className="inline-flex items-center gap-1 rounded border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-          >
-            <RotateCcw aria-hidden="true" className="h-3.5 w-3.5" />
-            {CHAT_RESEND}
-          </button>
-        </div>
-      ) : null}
+        {isError ? (
+          <div className="mt-2">
+            <Button
+              variant="secondary"
+              onClick={() => onResend(message.text)}
+              disabled={resendDisabled}
+            >
+              <RotateCcw aria-hidden="true" className="h-4 w-4" />
+              {CHAT_RESEND}
+            </Button>
+          </div>
+        ) : null}
+
+        <span className="mt-1 block text-caption text-ink-500">{faTime(message.created_at)}</span>
+      </div>
 
       {supportsFeedback ? (
         <FeedbackControls
