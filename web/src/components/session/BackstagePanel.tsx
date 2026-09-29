@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import clsx from 'clsx'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 
 import type { BackstageTurn, CantMiss, Hypothesis, SessionDetail } from '@/api/types'
+import { Badge } from '@/components/ui/Badge'
+import { Button } from '@/components/ui/Button'
+import { Card } from '@/components/ui/Card'
 import { CANT_MISS_STATUS_LABELS, NEXT_ACTION_LABELS, stopReasonLabel } from '@/i18n/labels'
 import {
   BACKSTAGE_CANT_MISS,
@@ -26,7 +28,7 @@ import { faNumber, faPercent } from '@/lib/format'
 
 function ScalarValue({ value }: { value: unknown }) {
   if (value === null || value === undefined || value === '') {
-    return <span className="text-gray-400">—</span>
+    return <span className="text-ink-400">—</span>
   }
   if (typeof value === 'boolean') return <span>{value ? 'بله' : 'خیر'}</span>
   if (typeof value === 'number') return <span>{faNumber(value)}</span>
@@ -35,13 +37,13 @@ function ScalarValue({ value }: { value: unknown }) {
 
 function KeyValueList({ value }: { value: Record<string, unknown> }) {
   const entries = Object.entries(value)
-  if (entries.length === 0) return <span className="text-gray-400">—</span>
+  if (entries.length === 0) return <span className="text-ink-400">—</span>
   return (
     <dl className="space-y-1">
       {entries.map(([key, entryValue]) => (
         <div key={key} className="flex flex-col gap-0.5 sm:flex-row sm:gap-2">
-          <dt className="ltr shrink-0 text-xs font-medium text-gray-500">{key}</dt>
-          <dd className="text-sm text-gray-800">
+          <dt className="ltr shrink-0 text-code font-medium text-ink-500">{key}</dt>
+          <dd className="text-body text-ink-700">
             <ClinicalStateValue value={entryValue} />
           </dd>
         </div>
@@ -56,7 +58,7 @@ function KeyValueList({ value }: { value: Record<string, unknown> }) {
  */
 function ClinicalStateValue({ value }: { value: unknown }) {
   if (Array.isArray(value)) {
-    if (value.length === 0) return <span className="text-gray-400">—</span>
+    if (value.length === 0) return <span className="text-ink-400">—</span>
     const allScalar = value.every((item) => item === null || typeof item !== 'object')
     if (allScalar) {
       return (
@@ -72,7 +74,7 @@ function ClinicalStateValue({ value }: { value: unknown }) {
     return (
       <ul className="space-y-2">
         {value.map((item, index) => (
-          <li key={index} className="rounded border border-gray-200 bg-gray-50 p-2">
+          <li key={index} className="rounded-md border border-line bg-surface p-2">
             <ClinicalStateValue value={item} />
           </li>
         ))}
@@ -90,12 +92,12 @@ function ClinicalStateValue({ value }: { value: unknown }) {
 function ClinicalState({ state }: { state: Record<string, unknown> }) {
   const [open, setOpen] = useState(false)
   return (
-    <div className="rounded border border-gray-200 bg-white">
+    <div className="rounded-md border border-line bg-surface">
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
-        className="flex w-full items-center justify-between gap-2 px-3 py-2 text-start text-sm font-medium text-gray-800 hover:bg-gray-50"
+        className="flex w-full items-center justify-between gap-2 px-3 py-2 text-start text-body-strong text-ink-700 hover:bg-primary-100"
       >
         <span>{BACKSTAGE_CLINICAL_STATE}</span>
         {open ? (
@@ -105,10 +107,10 @@ function ClinicalState({ state }: { state: Record<string, unknown> }) {
         )}
       </button>
       {open ? (
-        <div className="space-y-3 border-t border-gray-200 p-3" data-testid="clinical-state">
+        <div className="space-y-3 border-t border-line p-3" data-testid="clinical-state">
           {Object.entries(state).map(([key, value]) => (
             <div key={key}>
-              <p className="ltr mb-1 text-xs font-semibold tracking-wide text-gray-500">{key}</p>
+              <p className="ltr mb-1 text-code font-semibold text-ink-500">{key}</p>
               <ClinicalStateValue value={value} />
             </div>
           ))}
@@ -124,13 +126,13 @@ function ClinicalState({ state }: { state: Record<string, unknown> }) {
 
 function HypothesisMiniTable({ rows }: { rows: Hypothesis[] }) {
   return (
-    <table className="w-full border-collapse text-sm" data-testid="backstage-hypotheses">
+    <table className="w-full border-collapse text-body" data-testid="backstage-hypotheses">
       <tbody>
         {rows.map((row, index) => (
-          <tr key={index} className="border-b border-gray-100 last:border-0">
+          <tr key={index} className="border-b border-line last:border-0">
             <td className="px-1 py-1">
               {row.name_fa}
-              <span className="ltr ms-2 text-xs text-gray-400">{row.name_en}</span>
+              <span className="ltr ms-2 text-caption text-ink-500">{row.name_en}</span>
             </td>
             <td className="w-14 px-1 py-1 text-end whitespace-nowrap">{faPercent(row.probability)}</td>
           </tr>
@@ -144,14 +146,12 @@ function CantMissChips({ rows }: { rows: CantMiss[] }) {
   return (
     <ul className="flex flex-wrap gap-1.5">
       {rows.map((row, index) => (
-        <li
-          key={index}
-          className={clsx(
-            'rounded-full border px-2 py-0.5 text-xs',
-            CANT_MISS_STATUS_LABELS[row.status].className,
-          )}
-        >
-          {row.name_fa} · {CANT_MISS_STATUS_LABELS[row.status].label}
+        <li key={index}>
+          <span
+            className={`inline-block rounded-pill border px-2.5 py-0.5 text-caption ${CANT_MISS_STATUS_LABELS[row.status].className}`}
+          >
+            {row.name_fa} · {CANT_MISS_STATUS_LABELS[row.status].label}
+          </span>
         </li>
       ))}
     </ul>
@@ -161,8 +161,8 @@ function CantMissChips({ rows }: { rows: CantMiss[] }) {
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div>
-      <p className="mb-1 text-xs font-semibold text-gray-500">{label}</p>
-      <div className="text-sm text-gray-800">{children}</div>
+      <p className="mb-1 text-caption font-semibold text-ink-500">{label}</p>
+      <div className="text-body text-ink-700">{children}</div>
     </div>
   )
 }
@@ -183,9 +183,9 @@ function BackstageTurnItem({ turn, title }: { turn: BackstageTurn; title: string
 
   return (
     <li className="relative ps-6" data-testid="backstage-turn">
-      <span className="absolute start-1 top-1.5 h-2.5 w-2.5 rounded-full bg-teal-600" />
-      <div className="space-y-3 rounded border border-gray-200 bg-gray-50 p-3">
-        <p className="text-sm font-medium text-gray-900">{title}</p>
+      <span className="absolute start-1 top-1.5 h-2.5 w-2.5 rounded-full bg-primary-600" />
+      <div className="space-y-3 rounded-md border border-line bg-canvas p-3">
+        <p className="text-body-strong text-ink-900">{title}</p>
 
         {turn.question_rationale ? (
           <Field label={BACKSTAGE_QUESTION_RATIONALE}>
@@ -219,7 +219,7 @@ function BackstageTurnItem({ turn, title }: { turn: BackstageTurn; title: string
 
         {turn.next_action ? (
           <Field label={BACKSTAGE_NEXT_ACTION}>
-            <span>{NEXT_ACTION_LABELS[turn.next_action]}</span>
+            <Badge tone="primary">{NEXT_ACTION_LABELS[turn.next_action]}</Badge>
           </Field>
         ) : null}
 
@@ -232,7 +232,7 @@ function BackstageTurnItem({ turn, title }: { turn: BackstageTurn; title: string
         {turn.clinical_state ? <ClinicalState state={turn.clinical_state} /> : null}
 
         {!hasStructuredFields ? (
-          <p className="text-xs text-gray-400" data-testid="backstage-empty-turn">
+          <p className="text-caption text-ink-400" data-testid="backstage-empty-turn">
             —
           </p>
         ) : null}
@@ -248,28 +248,24 @@ export function BackstagePanel({ session }: { session: SessionDetail }) {
   const messageTextById = new Map(session.messages.map((message) => [message.id, message.text]))
 
   return (
-    <section
-      className="space-y-3 rounded-lg border border-gray-200 bg-white p-4 shadow-sm"
-      data-testid="backstage-panel"
-    >
+    <Card data-testid="backstage-panel" className="flex flex-col gap-3">
       <header className="flex items-center justify-between gap-2">
-        <h2 className="text-base font-bold text-gray-900">{BACKSTAGE_TITLE}</h2>
-        <button
-          type="button"
-          onClick={() => setOpen((value) => !value)}
-          aria-expanded={open}
-          className="inline-flex items-center gap-1 rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"
-        >
-          {open ? <ChevronUp aria-hidden="true" className="h-4 w-4" /> : <ChevronDown aria-hidden="true" className="h-4 w-4" />}
+        <h2 className="text-h2 text-primary-900">{BACKSTAGE_TITLE}</h2>
+        <Button variant="secondary" onClick={() => setOpen((value) => !value)} aria-expanded={open}>
+          {open ? (
+            <ChevronUp aria-hidden="true" className="h-4 w-4" />
+          ) : (
+            <ChevronDown aria-hidden="true" className="h-4 w-4" />
+          )}
           {open ? BACKSTAGE_TOGGLE_HIDE : BACKSTAGE_TOGGLE_SHOW}
-        </button>
+        </Button>
       </header>
 
       {open ? (
         turns.length === 0 ? (
-          <p className="text-sm text-gray-500">—</p>
+          <p className="text-body text-ink-500">—</p>
         ) : (
-          <ol className="space-y-4 border-s border-dashed border-gray-200">
+          <ol className="space-y-4 border-s-2 border-line">
             {turns.map((turn) => (
               <BackstageTurnItem
                 key={turn.message_id}
@@ -280,6 +276,6 @@ export function BackstagePanel({ session }: { session: SessionDetail }) {
           </ol>
         )
       ) : null}
-    </section>
+    </Card>
   )
 }

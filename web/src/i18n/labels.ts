@@ -28,9 +28,9 @@ import { EVALUATION_SCORE_KEYS, SAFETY_FLAG_KEYS } from '@/api/types'
 
 export interface TriageLevelStyle {
   label: string
-  /** Badge classes for the result card and the list badges. */
+  /** Soft token classes (text `-700`, background `-100`, border `-600`) per §1.2. */
   badgeClass: string
-  /** Solid classes for the emergency-probability bar. */
+  /** Solid `-600` classes for the emergency-probability bar. */
   barClass: string
   /** Border/background used by the history table badge. */
   softClass: string
@@ -39,33 +39,33 @@ export interface TriageLevelStyle {
 export const TRIAGE_LEVEL_LABELS: Record<TriageLevel, TriageLevelStyle> = {
   EMERGENCY_NOW: {
     label: 'اورژانسی — همین حالا',
-    badgeClass: 'bg-red-600 text-white border-red-700',
-    barClass: 'bg-red-600',
-    softClass: 'bg-red-50 text-red-700 border-red-200',
+    badgeClass: 'bg-danger-100 text-danger-700 border-danger-600',
+    barClass: 'bg-danger-600',
+    softClass: 'bg-danger-100 text-danger-700 border-danger-600',
   },
   URGENT_24H: {
     label: 'فوری — ظرف ۲۴ ساعت',
-    badgeClass: 'bg-orange-500 text-white border-orange-600',
-    barClass: 'bg-orange-500',
-    softClass: 'bg-orange-50 text-orange-700 border-orange-200',
+    badgeClass: 'bg-warning-100 text-warning-700 border-warning-600',
+    barClass: 'bg-warning-600',
+    softClass: 'bg-warning-100 text-warning-700 border-warning-600',
   },
   ROUTINE_DAYS: {
     label: 'غیرفوری — ظرف چند روز',
-    badgeClass: 'bg-yellow-400 text-yellow-950 border-yellow-500',
-    barClass: 'bg-yellow-400',
-    softClass: 'bg-yellow-50 text-yellow-800 border-yellow-200',
+    badgeClass: 'bg-primary-100 text-primary-700 border-primary-600',
+    barClass: 'bg-primary-600',
+    softClass: 'bg-primary-100 text-primary-700 border-primary-600',
   },
   SELF_CARE: {
     label: 'مراقبت در منزل',
-    badgeClass: 'bg-green-600 text-white border-green-700',
-    barClass: 'bg-green-600',
-    softClass: 'bg-green-50 text-green-700 border-green-200',
+    badgeClass: 'bg-success-100 text-success-700 border-success-600',
+    barClass: 'bg-success-600',
+    softClass: 'bg-success-100 text-success-700 border-success-600',
   },
   INSUFFICIENT_INFO: {
     label: 'اطلاعات کافی نیست',
-    badgeClass: 'bg-gray-500 text-white border-gray-600',
-    barClass: 'bg-gray-500',
-    softClass: 'bg-gray-100 text-gray-700 border-gray-300',
+    badgeClass: 'bg-neutral-100 text-neutral-700 border-ink-400',
+    barClass: 'bg-ink-400',
+    softClass: 'bg-neutral-100 text-neutral-700 border-ink-400',
   },
 }
 
@@ -110,19 +110,19 @@ export interface CantMissStyle {
 export const CANT_MISS_STATUS_LABELS: Record<CantMissStatus, CantMissStyle> = {
   not_yet_assessed: {
     label: 'بررسی نشد',
-    className: 'bg-gray-100 text-gray-700 border-gray-300',
+    className: 'bg-neutral-100 text-neutral-700 border-ink-400',
   },
   ruled_out: {
     label: 'رد شد',
-    className: 'bg-green-50 text-green-700 border-green-200',
+    className: 'bg-success-100 text-success-700 border-success-600',
   },
   not_excluded: {
     label: 'رد نشد',
-    className: 'bg-orange-50 text-orange-700 border-orange-200',
+    className: 'bg-warning-100 text-warning-700 border-warning-600',
   },
   suspected: {
     label: 'مشکوک',
-    className: 'bg-red-50 text-red-700 border-red-200',
+    className: 'bg-danger-100 text-danger-700 border-danger-600',
   },
 }
 

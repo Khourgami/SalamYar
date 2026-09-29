@@ -28,12 +28,12 @@ export function SessionContent({ session, readOnly = false }: SessionContentProp
   const [toast, setToast] = useState<string | null>(null)
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-6">
       <Toast message={toast} onDismiss={() => setToast(null)} />
       <ChatPanel session={session} readOnly={readOnly} />
 
       {completed ? (
-        <div className="space-y-6" data-testid="completed-view">
+        <div className="flex flex-col gap-6" data-testid="completed-view">
           {session.result ? <ResultCard result={session.result} /> : null}
           <BackstagePanel session={session} />
 
@@ -47,7 +47,7 @@ export function SessionContent({ session, readOnly = false }: SessionContentProp
           {evaluated && !readOnly ? (
             <Link
               to="/"
-              className="inline-block rounded bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800"
+              className="inline-flex w-full items-center justify-center rounded-md bg-primary-600 px-4 py-2 text-button text-white hover:[filter:brightness(.92)] sm:w-auto"
             >
               {NEXT_DOCTOR}
             </Link>

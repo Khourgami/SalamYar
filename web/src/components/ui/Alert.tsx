@@ -27,17 +27,20 @@ export function Alert({
   children,
   role,
   className,
+  testId,
 }: {
   tone?: AlertTone
   title?: ReactNode
   children?: ReactNode
   role?: 'alert' | 'status' | 'note'
   className?: string
+  testId?: string
 }) {
   const { wrap, icon, Icon } = TONES[tone]
   return (
     <div
       role={role}
+      data-testid={testId}
       className={cn('flex items-start gap-2 rounded-md border-s-4 p-3', wrap, className)}
     >
       <Icon aria-hidden="true" className={cn('mt-0.5 h-4 w-4 shrink-0', icon)} />

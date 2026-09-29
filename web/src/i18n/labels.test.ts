@@ -55,16 +55,23 @@ describe('enum labels', () => {
     expect(triageLevelLabel('SELF_CARE')).toBe('مراقبت در منزل')
     expect(triageLevelLabel('INSUFFICIENT_INFO')).toBe('اطلاعات کافی نیست')
     expect(triageLevelLabel(null)).toBe('—')
-    expect(triageLevelStyle('EMERGENCY_NOW')?.barClass).toBe('bg-red-600')
+    expect(triageLevelStyle('EMERGENCY_NOW')?.barClass).toBe('bg-danger-600')
     expect(triageLevelStyle(null)).toBeNull()
   })
 
-  it('uses the red palette for emergencies and green for self care', () => {
-    expect(TRIAGE_LEVEL_LABELS.EMERGENCY_NOW.badgeClass).toContain('red')
-    expect(TRIAGE_LEVEL_LABELS.URGENT_24H.badgeClass).toContain('orange')
-    expect(TRIAGE_LEVEL_LABELS.ROUTINE_DAYS.badgeClass).toContain('yellow')
-    expect(TRIAGE_LEVEL_LABELS.SELF_CARE.badgeClass).toContain('green')
-    expect(TRIAGE_LEVEL_LABELS.INSUFFICIENT_INFO.badgeClass).toContain('gray')
+  it('maps every triage level to its §1.2 design token', () => {
+    // changed in phase 2 T7: the phase-1 default palette was replaced by the tokens of
+    // DESIGN_SYSTEM §1.2 (same mapping, token names instead of red/orange/yellow/…)
+    expect(TRIAGE_LEVEL_LABELS.EMERGENCY_NOW.badgeClass).toContain('danger')
+    expect(TRIAGE_LEVEL_LABELS.URGENT_24H.badgeClass).toContain('warning')
+    expect(TRIAGE_LEVEL_LABELS.ROUTINE_DAYS.badgeClass).toContain('primary')
+    expect(TRIAGE_LEVEL_LABELS.SELF_CARE.badgeClass).toContain('success')
+    expect(TRIAGE_LEVEL_LABELS.INSUFFICIENT_INFO.badgeClass).toContain('neutral')
+
+    for (const level of TRIAGE_LEVELS) {
+      expect(TRIAGE_LEVEL_LABELS[level].softClass).toContain('border-')
+      expect(TRIAGE_LEVEL_LABELS[level].barClass).toMatch(/^bg-/)
+    }
   })
 
   it('labels every specialty with the AGENT_SPEC Persian name', () => {
@@ -85,11 +92,11 @@ describe('enum labels', () => {
 
     expectAllLabeled(CANT_MISS_STATUSES, CANT_MISS_STATUS_LABELS)
     expect(CANT_MISS_STATUS_LABELS.ruled_out.label).toBe('رد شد')
-    expect(CANT_MISS_STATUS_LABELS.ruled_out.className).toContain('green')
+    expect(CANT_MISS_STATUS_LABELS.ruled_out.className).toContain('success')
     expect(CANT_MISS_STATUS_LABELS.not_excluded.label).toBe('رد نشد')
-    expect(CANT_MISS_STATUS_LABELS.not_excluded.className).toContain('orange')
+    expect(CANT_MISS_STATUS_LABELS.not_excluded.className).toContain('warning')
     expect(CANT_MISS_STATUS_LABELS.suspected.label).toBe('مشکوک')
-    expect(CANT_MISS_STATUS_LABELS.suspected.className).toContain('red')
+    expect(CANT_MISS_STATUS_LABELS.suspected.className).toContain('danger')
     expect(CANT_MISS_STATUS_LABELS.not_yet_assessed.label).toBe('بررسی نشد')
 
     expectAllLabeled(GUARD_FLAGS, GUARD_FLAG_LABELS)

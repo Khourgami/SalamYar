@@ -32,7 +32,7 @@ See `docs/reports/phase-1-web-mock.md`.
 | T4 | Login page redesign (`§6.1`) | ✅ Done |
 | T5 | Doctors list redesign (`§6.2`) | ✅ Done |
 | T6 | Session page chat restyle (`§6.3`, `§5.11`) | ✅ Done |
-| T7 | Result card, backstage, evaluation, reveal (`§6.4–§6.6`) | ⬜ Not started |
+| T7 | Result card, backstage, evaluation, reveal (`§6.4–§6.6`) | ✅ Done |
 | T8 | History and admin (`§6.7–§6.9`, UI_SPEC §3.5) | ⬜ Not started |
 | T9 | QA, contrast script, screenshots, phase-2 report | ⬜ Not started |
 
@@ -53,6 +53,7 @@ npm run test    # vitest run
 
 ## Log
 
+- 2026-09-30 — **Phase 2** — T7 — Result card on tokens (emergency danger `Alert` with the `lg` badge + icon, §6.4 probability-bar thresholds, key/value grid, token tables, clinical-summary grid, warning guard flags, pediatric info `Alert`); `TriageBadge` on `Badge` with per-level tone + icon; backstage on `Card` with a 2px rail timeline, the generic renderer (W-017) unchanged and the mini hypothesis table (`name_fa` + small `name_en` + Persian %); evaluation form rebuilt on `SegmentedRating` (9 KPIs, no stars), the safety-flag warning box, a winner `SegmentedControl`, `focusField` on the first invalid control, a read-only summary and the success-strip reveal. **Changed tests:** `labels.test.ts` palette assertions → token assertions (see W-038). `build` ✅ `lint` ✅ `test` ✅ (173 tests, +8). Next: T8 history + admin.
 - 2026-09-30 — **Phase 2** — T6 — Chat restyle: session header card (back link to `/` with a mirrored chevron, avatar + `display_name` `h2`, `در جریان`/`تمام‌شده` status chip, question counter, secondary finish button while active), bubbles per §5.11 (agent surface/patient `primary-100`/error `neutral-100` with `ارسال دوباره`, `rounded-ss-sm`/`rounded-se-sm`, time under the text via the new `faTime`), the typing bubble with animated dots + `sr-only` text, restyled feedback row (32px toggle buttons), and a sticky composer that auto-grows 1–5 lines with `env(safe-area-inset-bottom)` and an `aria-label="ارسال"` send button. **Changed test:** none (10 phase-1 chat tests unchanged). `build` ✅ `lint` ✅ `test` ✅ (165 tests, +6). Next: T7 result/backstage/evaluation.
 - 2026-09-30 — **Phase 2** — T5 — Doctors list on the primitives: responsive 1/2/3/4-column grid, one identical 56px neutral avatar per card (`data-testid="doctor-avatar"`), `display_name` as `h3`, optional `description` caption, a full-width secondary `شروع گفتگو` with a loading state while every other button is disabled, the hint in an info `Alert`, and no specialty text or per-agent avatar. `build` ✅ `lint` ✅ `test` ✅ (161 tests, +2). Next: T6 chat restyle.
 - 2026-09-30 — **Phase 2** — T4 — Login redesign: a two-column desktop layout (form card max 400px on the inline-start side, `primary-100` brand panel with the 64px logo, the app name and the UI_SPEC §3.1 line on the inline-end side) that collapses to one column on mobile; `TextField`/`PasswordField`/`Button` primitives; the error as a danger `Alert` with focus moved to the username field; no forgot-password. Added `LOGIN_TITLE`/`LOGIN_BRAND_LINE` to `uiText` (UI_SPEC §3.1) and made `TextField` forward its ref. **Changed test:** `App.test.tsx` “renders the application shell” now uses `getAllByText` (the login page shows the app name twice). `build` ✅ `lint` ✅ `test` ✅ (159 tests, +2). Next: T5 doctors list.

@@ -102,12 +102,13 @@ export function SegmentedRating({
             ))}
           </div>
         ) : null}
+
+        {error ? (
+          <p className="mt-2 text-caption text-danger-700" role="alert">
+            {error}
+          </p>
+        ) : null}
       </fieldset>
-      {error ? (
-        <p className="text-caption text-danger-700" role="alert">
-          {error}
-        </p>
-      ) : null}
     </div>
   )
 }

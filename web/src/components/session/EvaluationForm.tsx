@@ -4,6 +4,36 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { isApiError } from '@/api/client'
 import { listSessions, submitEvaluation } from '@/api/endpoints'
+import { SPECIALTIES } from '@/api/types'
+import type {
+  ComparisonWinner,
+  EvaluationComments,
+  EvaluationInput,
+  SafetyFlagKey,
+  ScoreKey,
+  SessionDetail,
+  Specialty,
+  TriageLevel,
+} from '@/api/types'
+import { sessionQueryKey } from '@/components/session/sessionCache'
+import { Alert } from '@/components/ui/Alert'
+import { Button } from '@/components/ui/Button'
+import { Card } from '@/components/ui/Card'
+import { SegmentedControl } from '@/components/ui/SegmentedControl'
+import { SegmentedRating } from '@/components/ui/SegmentedRating'
+import { Select } from '@/components/ui/Select'
+import { TextArea } from '@/components/ui/TextArea'
+import { TextField } from '@/components/ui/TextField'
+import {
+  COMPARISON_WINNER_LABELS,
+  KPI_KEYS,
+  KPI_LABELS,
+  SAFETY_FLAG_KEYS_ORDER,
+  SAFETY_FLAG_LABELS,
+  TRIAGE_LEVEL_LABELS,
+  TRIAGE_LEVEL_ORDER,
+} from '@/i18n/labels'
+import { SPECIALTY_LABELS } from '@/i18n/specialties'
 import {
   EVALUATION_COMMENT_LABELS,
   EVALUATION_COMMENT_ORDER,
@@ -23,32 +53,7 @@ import {
   EVALUATION_VERDICT_TRIAGE,
   EVALUATION_VERDICT_TITLE,
 } from '@/i18n/uiText'
-import {
-  COMPARISON_WINNER_LABELS,
-  KPI_ANCHOR_VALUES,
-  KPI_KEYS,
-  KPI_LABELS,
-  KPI_SCORE_VALUES,
-  SAFETY_FLAG_KEYS_ORDER,
-  SAFETY_FLAG_LABELS,
-  TRIAGE_LEVEL_LABELS,
-  TRIAGE_LEVEL_ORDER,
-} from '@/i18n/labels'
-import { SPECIALTIES } from '@/api/types'
-import { SPECIALTY_LABELS } from '@/i18n/specialties'
-import { faDateTime, faNumber, truncate } from '@/lib/format'
-import { InlineSpinner } from '@/components/States'
-import { sessionQueryKey } from '@/components/session/sessionCache'
-import type {
-  ComparisonWinner,
-  EvaluationComments,
-  EvaluationInput,
-  SafetyFlagKey,
-  ScoreKey,
-  SessionDetail,
-  Specialty,
-  TriageLevel,
-} from '@/api/types'
+import { faDateTime, truncate } from '@/lib/format'
 
 type FieldKey = ScoreKey | 'triage_level' | 'specialty'
 
@@ -71,15 +76,16 @@ function nullable(value: string): string | null {
   return trimmed === '' ? null : trimmed
 }
 
-function scrollToField(fieldId: string): void {
+/** Bring the first invalid field into view **and** focus it (DESIGN_SYSTEM §6.6). */
+function focusField(fieldId: string): void {
   const node = document.getElementById(fieldId)
-  if (node && typeof node.scrollIntoView === 'function') {
-    node.scrollIntoView({ block: 'center' })
-  }
+  if (!node) return
+  if (typeof node.scrollIntoView === 'function') node.scrollIntoView({ block: 'center' })
+  const focusable = node.querySelector<HTMLElement>(
+    'select, input[type="radio"], input[type="text"], textarea, button',
+  )
+  focusable?.focus()
 }
-
-const inputClass =
-  'w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500'
 
 export interface EvaluationFormProps {
   session: SessionDetail
@@ -147,15 +153,13 @@ export function EvaluationForm({ session, onEvaluationLocked }: EvaluationFormPr
       (key) => nextErrors[key as FieldKey],
     )
     if (firstInvalid) {
-      scrollToField(`field-${firstInvalid}`)
+      focusField(`field-${firstInvalid}`)
       return
     }
 
     const unnecessaryCount = unnecessary.trim() === '' ? null : Number(unnecessary)
     const payload: EvaluationInput = {
-      scores: Object.fromEntries(
-        KPI_KEYS.map((key) => [key, scores[key]]),
-      ) as unknown as EvaluationInput['scores'],
+      scores: Object.fromEntries(KPI_KEYS.map((key) => [key, scores[key]])) as unknown as EvaluationInput['scores'],
       unnecessary_questions_count:
         unnecessaryCount === null || Number.isFinite(unnecessaryCount) ? unnecessaryCount : null,
       safety_flags: flags,
@@ -171,225 +175,170 @@ export function EvaluationForm({ session, onEvaluationLocked }: EvaluationFormPr
         general: nullable(comments.general),
       },
       comparison:
-        compareOn && comparedId !== ''
-          ? { compared_session_id: comparedId, winner }
-          : null,
+        compareOn && comparedId !== '' ? { compared_session_id: comparedId, winner } : null,
     }
 
     mutation.mutate(payload)
   }
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      noValidate
-      data-testid="evaluation-form"
-      className="space-y-6 rounded-lg border border-gray-200 bg-white p-4 shadow-sm"
-    >
-      <h2 className="text-base font-bold text-gray-900">{EVALUATION_TITLE}</h2>
+    <Card data-testid="evaluation-form">
+      <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-6">
+        <h2 className="text-h2 text-primary-900">{EVALUATION_TITLE}</h2>
 
-      {mutation.isError &&
-      !(isApiError(mutation.error) && mutation.error.status === 409) ? (
-        <p role="alert" className="rounded bg-red-50 px-3 py-2 text-sm text-red-700">
-          {EVALUATION_ERROR}
-        </p>
-      ) : null}
+        {mutation.isError &&
+        !(isApiError(mutation.error) && mutation.error.status === 409) ? (
+          <Alert tone="danger" role="alert">
+            {EVALUATION_ERROR}
+          </Alert>
+        ) : null}
 
-      {/* 1. KPI scores */}
-      <fieldset className="space-y-4">
-        <legend className="text-sm font-semibold text-gray-800">
-          {EVALUATION_KPI_TITLE} <span className="font-normal text-gray-400">{EVALUATION_SCORE_HINT}</span>
-        </legend>
+        {/* 1. KPI scores */}
+        <section className="flex flex-col gap-4">
+          <h3 className="text-h3 text-primary-900">
+            {EVALUATION_KPI_TITLE}{' '}
+            <span className="text-caption font-normal text-ink-500">{EVALUATION_SCORE_HINT}</span>
+          </h3>
 
-        {KPI_KEYS.map((key) => (
-          <fieldset
-            key={key}
-            id={`field-${key}`}
-            className="rounded border border-gray-200 p-3"
-            aria-invalid={errors[key] ? true : undefined}
-          >
-            <legend className="px-1 text-sm font-medium text-gray-800">{KPI_LABELS[key].label}</legend>
-            <div className="flex flex-wrap items-center gap-3">
-              {KPI_SCORE_VALUES.map((value) => (
-                <label key={value} className="inline-flex items-center gap-1 text-sm">
-                  <input
-                    type="radio"
-                    name={`kpi-${key}`}
-                    value={value}
-                    checked={scores[key] === value}
-                    onChange={() => {
-                      setScores((current) => ({ ...current, [key]: value }))
-                      setErrors((current) => ({ ...current, [key]: false }))
-                    }}
-                  />
-                  <span>{faNumber(value)}</span>
-                </label>
-              ))}
-            </div>
-            <div className="mt-2 grid grid-cols-3 gap-2 text-xs text-gray-500">
-              <span>{KPI_LABELS[key].anchors[KPI_ANCHOR_VALUES[0]]}</span>
-              <span className="text-center">{KPI_LABELS[key].anchors[KPI_ANCHOR_VALUES[1]]}</span>
-              <span className="text-end">{KPI_LABELS[key].anchors[KPI_ANCHOR_VALUES[2]]}</span>
-            </div>
-            {errors[key] ? (
-              <p className="mt-2 text-xs font-medium text-red-600">{EVALUATION_REQUIRED}</p>
-            ) : null}
-          </fieldset>
-        ))}
-      </fieldset>
-
-      {/* 2. Unnecessary questions */}
-      <div className="max-w-xs">
-        <label htmlFor="unnecessary-questions" className="mb-1 block text-sm font-medium text-gray-700">
-          {EVALUATION_UNNECESSARY_QUESTIONS}
-        </label>
-        <input
-          id="unnecessary-questions"
-          type="number"
-          min={0}
-          max={50}
-          value={unnecessary}
-          onChange={(event) => setUnnecessary(event.target.value)}
-          className={inputClass}
-        />
-      </div>
-
-      {/* 3. Safety flags */}
-      <fieldset className="space-y-2">
-        <legend className="text-sm font-semibold text-gray-800">{EVALUATION_SAFETY_TITLE}</legend>
-        {SAFETY_FLAG_KEYS_ORDER.map((key) => (
-          <label key={key} className="flex items-start gap-2 text-sm text-gray-800">
-            <input
-              type="checkbox"
-              checked={flags[key]}
-              onChange={(event) =>
-                setFlags((current) => ({ ...current, [key]: event.target.checked }))
-              }
-              className="mt-1"
-            />
-            <span>{SAFETY_FLAG_LABELS[key]}</span>
-          </label>
-        ))}
-      </fieldset>
-
-      {/* 4. Verdict */}
-      <fieldset className="space-y-3">
-        <legend className="text-sm font-semibold text-gray-800">{EVALUATION_VERDICT_TITLE}</legend>
-
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div id="field-triage_level">
-            <label htmlFor="verdict-triage" className="mb-1 block text-sm font-medium text-gray-700">
-              {EVALUATION_VERDICT_TRIAGE}
-            </label>
-            <select
-              id="verdict-triage"
-              value={triage}
-              aria-invalid={errors.triage_level ? true : undefined}
-              onChange={(event) => {
-                setTriage(event.target.value as TriageLevel | '')
-                setErrors((current) => ({ ...current, triage_level: false }))
-              }}
-              className={inputClass}
-            >
-              <option value="">—</option>
-              {TRIAGE_LEVEL_ORDER.map((level) => (
-                <option key={level} value={level}>
-                  {TRIAGE_LEVEL_LABELS[level].label}
-                </option>
-              ))}
-            </select>
-            {errors.triage_level ? (
-              <p className="mt-1 text-xs font-medium text-red-600">{EVALUATION_REQUIRED}</p>
-            ) : null}
+          <div className="grid gap-4 lg:grid-cols-2">
+            {KPI_KEYS.map((key) => (
+              <SegmentedRating
+                key={key}
+                id={`field-${key}`}
+                name={`kpi-${key}`}
+                label={KPI_LABELS[key].label}
+                anchors={KPI_LABELS[key].anchors}
+                value={scores[key] ?? null}
+                error={errors[key] ? EVALUATION_REQUIRED : null}
+                onChange={(value) => {
+                  setScores((current) => ({ ...current, [key]: value }))
+                  setErrors((current) => ({ ...current, [key]: false }))
+                }}
+              />
+            ))}
           </div>
+        </section>
 
-          <div id="field-specialty">
-            <label htmlFor="verdict-specialty" className="mb-1 block text-sm font-medium text-gray-700">
-              {EVALUATION_VERDICT_SPECIALTY}
-            </label>
-            <select
-              id="verdict-specialty"
-              value={specialty}
-              aria-invalid={errors.specialty ? true : undefined}
-              onChange={(event) => {
-                setSpecialty(event.target.value as Specialty | '')
-                setErrors((current) => ({ ...current, specialty: false }))
-              }}
-              className={inputClass}
-            >
-              <option value="">—</option>
-              {SPECIALTIES.map((code) => (
-                <option key={code} value={code}>
-                  {SPECIALTY_LABELS[code]}
-                </option>
-              ))}
-            </select>
-            {errors.specialty ? (
-              <p className="mt-1 text-xs font-medium text-red-600">{EVALUATION_REQUIRED}</p>
-            ) : null}
-          </div>
-        </div>
-
-        <div>
-          <label
-            htmlFor="verdict-diagnosis"
-            className="mb-1 block text-sm font-medium text-gray-700"
-          >
-            {EVALUATION_VERDICT_DIAGNOSIS}
-          </label>
-          <input
-            id="verdict-diagnosis"
-            type="text"
-            value={diagnosis}
-            onChange={(event) => setDiagnosis(event.target.value)}
-            className={inputClass}
+        {/* 2. Unnecessary questions */}
+        <div className="max-w-[160px]">
+          <TextField
+            id="unnecessary-questions"
+            type="number"
+            min={0}
+            max={50}
+            label={EVALUATION_UNNECESSARY_QUESTIONS}
+            value={unnecessary}
+            onChange={(event) => setUnnecessary(event.target.value)}
           />
         </div>
-      </fieldset>
 
-      {/* 5. Comments */}
-      <fieldset className="space-y-3">
-        {EVALUATION_COMMENT_ORDER.map((key) => (
-          <div key={key}>
-            <label htmlFor={`comment-${key}`} className="mb-1 block text-sm font-medium text-gray-700">
-              {EVALUATION_COMMENT_LABELS[key]}
+        {/* 3. Safety flags */}
+        <fieldset className="space-y-2 rounded-md border border-warning-600 bg-warning-100 p-3">
+          <legend className="px-1 text-h3 text-primary-900">{EVALUATION_SAFETY_TITLE}</legend>
+          {SAFETY_FLAG_KEYS_ORDER.map((key) => (
+            <label key={key} className="flex items-start gap-2 text-body text-ink-900">
+              <input
+                type="checkbox"
+                checked={flags[key]}
+                onChange={(event) =>
+                  setFlags((current) => ({ ...current, [key]: event.target.checked }))
+                }
+                className="mt-1"
+              />
+              <span>{SAFETY_FLAG_LABELS[key]}</span>
             </label>
-            <textarea
+          ))}
+        </fieldset>
+
+        {/* 4. Verdict */}
+        <fieldset className="space-y-3">
+          <legend className="text-h3 text-primary-900">{EVALUATION_VERDICT_TITLE}</legend>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div id="field-triage_level">
+              <Select
+                id="verdict-triage"
+                label={EVALUATION_VERDICT_TRIAGE}
+                value={triage}
+                error={errors.triage_level ? EVALUATION_REQUIRED : null}
+                onChange={(event) => {
+                  setTriage(event.target.value as TriageLevel | '')
+                  setErrors((current) => ({ ...current, triage_level: false }))
+                }}
+              >
+                <option value="">—</option>
+                {TRIAGE_LEVEL_ORDER.map((level) => (
+                  <option key={level} value={level}>
+                    {TRIAGE_LEVEL_LABELS[level].label}
+                  </option>
+                ))}
+              </Select>
+            </div>
+
+            <div id="field-specialty">
+              <Select
+                id="verdict-specialty"
+                label={EVALUATION_VERDICT_SPECIALTY}
+                value={specialty}
+                error={errors.specialty ? EVALUATION_REQUIRED : null}
+                onChange={(event) => {
+                  setSpecialty(event.target.value as Specialty | '')
+                  setErrors((current) => ({ ...current, specialty: false }))
+                }}
+              >
+                <option value="">—</option>
+                {SPECIALTIES.map((code) => (
+                  <option key={code} value={code}>
+                    {SPECIALTY_LABELS[code]}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          </div>
+
+          <TextField
+            id="verdict-diagnosis"
+            label={EVALUATION_VERDICT_DIAGNOSIS}
+            value={diagnosis}
+            onChange={(event) => setDiagnosis(event.target.value)}
+          />
+        </fieldset>
+
+        {/* 5. Comments */}
+        <fieldset className="grid gap-3 sm:grid-cols-2">
+          {EVALUATION_COMMENT_ORDER.map((key) => (
+            <TextArea
+              key={key}
               id={`comment-${key}`}
+              label={EVALUATION_COMMENT_LABELS[key]}
               rows={3}
               value={comments[key]}
               onChange={(event) =>
                 setComments((current) => ({ ...current, [key]: event.target.value }))
               }
-              className={inputClass}
             />
-          </div>
-        ))}
-      </fieldset>
+          ))}
+        </fieldset>
 
-      {/* 6. Comparison */}
-      <fieldset className="space-y-3">
-        <label className="flex items-start gap-2 text-sm text-gray-800">
-          <input
-            type="checkbox"
-            checked={compareOn}
-            onChange={(event) => setCompareOn(event.target.checked)}
-            className="mt-1"
-          />
-          <span>{EVALUATION_COMPARE_CHECKBOX}</span>
-        </label>
+        {/* 6. Comparison */}
+        <fieldset className="space-y-3">
+          <label className="flex items-start gap-2 text-body text-ink-900">
+            <input
+              type="checkbox"
+              checked={compareOn}
+              onChange={(event) => setCompareOn(event.target.checked)}
+              className="mt-1"
+            />
+            <span>{EVALUATION_COMPARE_CHECKBOX}</span>
+          </label>
 
-        {compareOn ? (
-          <div className="space-y-3 border-s-2 border-gray-200 ps-3">
-            <div>
-              <label htmlFor="comparison-session" className="mb-1 block text-sm font-medium text-gray-700">
-                {EVALUATION_COMPARE_SELECT}
-              </label>
-              <select
+          {compareOn ? (
+            <div className="space-y-3 border-s-2 border-line ps-3">
+              <Select
                 id="comparison-session"
+                label={EVALUATION_COMPARE_SELECT}
                 value={comparedId}
                 onChange={(event) => setComparedId(event.target.value)}
-                className={inputClass}
               >
                 <option value="">—</option>
                 {candidates.map((item) => (
@@ -398,40 +347,35 @@ export function EvaluationForm({ session, onEvaluationLocked }: EvaluationFormPr
                     {faDateTime(item.created_at, { dateOnly: true })}
                   </option>
                 ))}
-              </select>
-            </div>
+              </Select>
 
-            <fieldset>
-              <legend className="mb-1 text-sm font-medium text-gray-700">
-                {EVALUATION_COMPARE_QUESTION}
-              </legend>
-              <div className="flex flex-wrap gap-4">
-                {(['this', 'other', 'tie'] as const).map((option) => (
-                  <label key={option} className="inline-flex items-center gap-1 text-sm">
-                    <input
-                      type="radio"
-                      name="comparison-winner"
-                      value={option}
-                      checked={winner === option}
-                      onChange={() => setWinner(option)}
-                    />
-                    <span>{COMPARISON_WINNER_LABELS[option]}</span>
-                  </label>
-                ))}
+              <div>
+                <p className="mb-1 text-body-strong text-ink-700" id="comparison-winner-label">
+                  {EVALUATION_COMPARE_QUESTION}
+                </p>
+                <SegmentedControl
+                  label={EVALUATION_COMPARE_QUESTION}
+                  options={(['this', 'other', 'tie'] as const).map((option) => ({
+                    value: option,
+                    label: COMPARISON_WINNER_LABELS[option],
+                  }))}
+                  value={winner}
+                  onChange={setWinner}
+                />
               </div>
-            </fieldset>
-          </div>
-        ) : null}
-      </fieldset>
+            </div>
+          ) : null}
+        </fieldset>
 
-      <button
-        type="submit"
-        disabled={mutation.isPending}
-        className="inline-flex items-center gap-2 rounded bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800 disabled:bg-gray-300"
-      >
-        {mutation.isPending ? <InlineSpinner /> : null}
-        {EVALUATION_SUBMIT}
-      </button>
-    </form>
+        <Button
+          type="submit"
+          size="lg"
+          className="w-full sm:w-auto"
+          loading={mutation.isPending}
+        >
+          {EVALUATION_SUBMIT}
+        </Button>
+      </form>
+    </Card>
   )
 }
