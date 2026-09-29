@@ -63,10 +63,10 @@ def load_session(db: Session, session_id: str) -> m.Session:
     return sess
 
 
-def load_accessible(db: Session, session_id: str, user: m.User) -> m.Session:
-    """Owner or admin; otherwise 403."""
+def load_owned(db: Session, session_id: str, user: m.User) -> m.Session:
+    """Owner only, for every role including admin (D-020); unknown id → 404 first."""
     sess = load_session(db, session_id)
-    if sess.user_id != user.id and user.role != "admin":
+    if sess.user_id != user.id:
         raise forbidden("Not the owner of this session")
     return sess
 
@@ -251,7 +251,9 @@ def list_sessions(
         has_eval = select(m.Evaluation.id).where(m.Evaluation.session_id == m.Session.id).exists()
         q = q.where(has_eval if evaluated else ~has_eval)
     total = db.scalar(select(func.count()).select_from(q.subquery())) or 0
-    rows = db.scalars(q.order_by(m.Session.created_at.desc()).limit(limit).offset(offset))
+    rows = db.scalars(
+        q.order_by(m.Session.created_at.desc(), m.Session.id.desc()).limit(limit).offset(offset)
+    )
     return list(rows), total
 
 
@@ -446,7 +448,7 @@ async def process_turn(
     forced: EndReason | None = None,
 ) -> TurnResponse:
     """Handle `POST /messages` (text given) or `POST /finish` (text None, forced)."""
-    sess = load_accessible(db, session_id, user)
+    sess = load_owned(db, session_id, user)
     if sess.status == "completed":
         raise AppError(409, "SESSION_COMPLETED", "Session is already completed")
     _acquire_lock(db, sess.id)

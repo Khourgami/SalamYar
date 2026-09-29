@@ -85,8 +85,8 @@ def test_get_session_access(lab: Lab) -> None:
     assert lab.req("GET", f"/sessions/{sid}").status_code == 200
     r = lab.req("GET", f"/sessions/{sid}", "ev2")
     assert r.status_code == 403 and r.json()["error"]["code"] == "FORBIDDEN"
-    admin_view = lab.req("GET", f"/sessions/{sid}", "boss").json()
-    assert admin_view["reveal"]["architecture"] == "simple"  # admins always see reveal
+    r = lab.req("GET", f"/sessions/{sid}", "boss")  # owner-only for admins too (D-020)
+    assert r.status_code == 403 and r.json()["error"]["code"] == "FORBIDDEN"
     assert lab.req("GET", "/sessions/does-not-exist").status_code == 404
 
 

@@ -53,7 +53,7 @@ def list_sessions(
 def get_session(
     session_id: str, user: User = Depends(current_user), db: Session = Depends(get_db)
 ) -> SessionDetail:
-    return svc.build_detail(db, svc.load_accessible(db, session_id, user), user)
+    return svc.build_detail(db, svc.load_owned(db, session_id, user), user)
 
 
 @router.post("/{session_id}/messages", response_model=TurnResponse)

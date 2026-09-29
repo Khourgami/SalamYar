@@ -66,8 +66,8 @@ def test_admin_sessions_list_and_detail(lab: Lab) -> None:
     assert detail["reveal"]["architecture"] == "simple"
     assert len(detail["feedback"]) == 1
     assert detail["backstage"] is not None
-    # through the normal endpoint the admin sees only their own feedback (none)
-    assert lab.req("GET", f"/sessions/{s1}", "boss").json()["feedback"] == []
+    # the normal endpoint is owner-only for admins too (D-020)
+    assert lab.req("GET", f"/sessions/{s1}", "boss").status_code == 403
     assert lab.req("GET", "/admin/sessions/missing", "boss").status_code == 404
 
 
