@@ -1,6 +1,7 @@
-import { useId } from 'react'
 import type { ReactNode } from 'react'
 
+import { Button } from '@/components/ui/Button'
+import { Modal } from '@/components/ui/Modal'
 import { CANCEL, CONFIRM } from '@/i18n/uiText'
 
 export interface ConfirmDialogProps {
@@ -12,6 +13,7 @@ export interface ConfirmDialogProps {
   onCancel: () => void
 }
 
+/** DESIGN_SYSTEM §5.6 — the confirm dialog is the Modal primitive with a primary/secondary pair. */
 export function ConfirmDialog({
   open,
   message,
@@ -20,39 +22,24 @@ export function ConfirmDialog({
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
-  const titleId = useId()
-  if (!open) return null
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        data-testid="confirm-dialog"
-        className="w-full max-w-sm rounded-lg bg-white p-5 shadow-xl"
-      >
-        <p id={titleId} className="text-sm text-gray-800">
-          {message}
-        </p>
-        {children}
-        <div className="mt-5 flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
-          >
+    <Modal
+      open={open}
+      title={message}
+      onClose={onCancel}
+      testId="confirm-dialog"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onCancel}>
             {CANCEL}
-          </button>
-          <button
-            type="button"
-            onClick={onConfirm}
-            className="rounded bg-teal-700 px-3 py-1.5 text-sm font-semibold text-white hover:bg-teal-800"
-          >
+          </Button>
+          <Button variant="primary" onClick={onConfirm}>
             {confirmLabel}
-          </button>
-        </div>
-      </div>
-    </div>
+          </Button>
+        </>
+      }
+    >
+      {children}
+    </Modal>
   )
 }

@@ -27,7 +27,7 @@ See `docs/reports/phase-1-web-mock.md`.
 | Task | Scope | Status |
 |---|---|---|
 | T1 | Housekeeping + contract v1.1 (types, mocks, UI behavior, dead MSW chunk) | ✅ Done |
-| T2 | Design tokens (`DESIGN_SYSTEM §1–§3`) + UI primitives (`src/components/ui/`) | ⬜ Not started |
+| T2 | Design tokens (`DESIGN_SYSTEM §1–§3`) + UI primitives (`src/components/ui/`) | ✅ Done |
 | T3 | App shell: sidebar/drawer, sticky test banner, logo mark | ⬜ Not started |
 | T4 | Login page redesign (`§6.1`) | ⬜ Not started |
 | T5 | Doctors list redesign (`§6.2`) | ⬜ Not started |
@@ -53,6 +53,7 @@ npm run test    # vitest run
 
 ## Log
 
+- 2026-09-30 — **Phase 2** — T2 — Added the §2 CSS variables, the §3 Tailwind mapping (colours, radius, shadow, `fontSize` styles), base styles (canvas, font stack, `:focus-visible` ring), the `.icon-dir` RTL mirror, `.overlay-scrim` and a `prefers-reduced-motion` rule; added Vazirmatn 600. Built the primitives in `src/components/ui/`: `Button` (4 variants, 2 sizes, loading/`aria-busy`), `TextField`, `PasswordField` (show/hide), `TextArea`, `Select`, `Card`, `Badge`, `Alert`, `Modal` (focus trap), `Toast`, `Skeleton`, `SegmentedControl` (group/tabs/radios), `SegmentedRating` (native radios + 1/3/5 anchors). `ConfirmDialog` now uses `Modal`+`Button`; `Toast`/`Skeleton` moved to `ui/`. `build` ✅ `lint` ✅ `test` ✅ (151 tests, +10). Next: T3 app shell.
 - 2026-09-30 — **Phase 2** — T1 — Housekeeping (W-005 → Superseded by D-027; Phase-2 table; Q-1…Q-4 answered). Contract v1.1: `ApiErrorCode` + `API_ERROR_CODES` add `METHOD_NOT_ALLOWED`/`INTERNAL_ERROR`; mocks add user `doctor2`/«دکتر آزمایشی ۲», make every §5/§6 endpoint owner-only for **every** role (admin included, 404 before 403), enforce the feedback check order (404→403→400 kind→409) with an idempotent `DELETE`, validate the evaluation body strictly **before** the state checks, and keep both lists newest-first. UI: a 403 on `/sessions/:id` renders the full-page «دسترسی ندارید» state with a link to `/`; a 409 `EVALUATION_LOCKED` on submit shows the §4 toast (hoisted to `SessionContent`) and refetches; the evaluation form already sent every key. Build: `@/mocks/browser` is aliased to an empty stub and `copyPublicDir` is off when `VITE_USE_MOCKS≠true`, proven by `scripts/check-no-msw.mjs`. `build` ✅ `lint` ✅ `test` ✅ (141 tests, +13). Next: T2 tokens and primitives.
 - 2026-09-29 — T1 — Scaffolded the Vite + React 18 + TypeScript (strict) project, Tailwind 3 with
   Vazirmatn (400/500/700), RTL `index.html`, dev proxy `/api` → :8000, Vitest (jsdom + jest-dom),

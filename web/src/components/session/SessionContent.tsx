@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import type { SessionDetail } from '@/api/types'
-import { Toast } from '@/components/Toast'
+import { Toast } from '@/components/ui/Toast'
 import { BackstagePanel } from '@/components/session/BackstagePanel'
 import { ChatPanel } from '@/components/session/ChatPanel'
 import { EvaluationForm } from '@/components/session/EvaluationForm'

@@ -8,7 +8,7 @@ import { finishSession, postMessage } from '@/api/endpoints'
 import type { SessionDetail, TurnResponse } from '@/api/types'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { InlineSpinner } from '@/components/States'
-import { Toast } from '@/components/Toast'
+import { Toast } from '@/components/ui/Toast'
 import { MessageBubble } from '@/components/session/MessageBubble'
 import {
   appendAgentErrorMessages,

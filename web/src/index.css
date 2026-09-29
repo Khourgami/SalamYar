@@ -1,23 +1,99 @@
 @import '@fontsource/vazirmatn/400.css';
 @import '@fontsource/vazirmatn/500.css';
+@import '@fontsource/vazirmatn/600.css';
 @import '@fontsource/vazirmatn/700.css';
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * DESIGN_SYSTEM §2 — the single source of every colour, radius and shadow.
+ * No hex value may appear anywhere else in `src/`; components use the Tailwind names of §3.
+ */
+:root {
+  --color-primary-900: #123b66;
+  --color-primary-700: #1b55a6;
+  --color-primary-600: #246bce;
+  --color-primary-100: #eaf3ff;
+  --color-accent-500: #4db7d8;
+  --color-text-900: #152536;
+  --color-text-700: #334155;
+  --color-text-500: #5f6f82;
+  --color-text-400: #6b7c93;
+  --color-border: #d9e3ee;
+  --color-surface: #ffffff;
+  --color-canvas: #f7fafc;
+  --color-disabled-bg: #e8eef5;
+  --color-disabled-text: #8a98a8;
+  --color-neutral-700: #475569;
+  --color-neutral-100: #f1f5f9;
+  --color-success-700: #13704a;
+  --color-success-600: #1f9d67;
+  --color-success-100: #eaf8f1;
+  --color-warning-700: #8a5a0b;
+  --color-warning-600: #c98a1a;
+  --color-warning-100: #fff7e6;
+  --color-danger-700: #b42318;
+  --color-danger-600: #d64545;
+  --color-danger-100: #fff0f0;
+  --color-info-600: #3478c7;
+  --color-info-100: #eef6ff;
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-pill: 999px;
+
+  --shadow-1: 0 1px 3px rgba(21, 37, 54, 0.08);
+  --shadow-2: 0 6px 18px rgba(21, 37, 54, 0.1);
+  --shadow-3: 0 14px 36px rgba(21, 37, 54, 0.14);
+}
+
 @layer base {
   html {
-    font-family: 'Vazirmatn', ui-sans-serif, system-ui, sans-serif;
+    font-family: 'Vazirmatn', Tahoma, sans-serif;
   }
 
   body {
-    @apply bg-gray-50 text-gray-900 antialiased;
+    @apply bg-canvas text-ink-900 antialiased;
+    font-family: 'Vazirmatn', Tahoma, sans-serif;
+  }
+
+  /* DESIGN_SYSTEM §1.4 — every focusable element keeps a visible focus ring. */
+  :focus-visible {
+    outline: 2px solid var(--color-primary-600);
+    outline-offset: 2px;
   }
 
   /* Latin/number runs (model slugs, CSV names) stay LTR inside the RTL page. */
   .ltr {
     direction: ltr;
     unicode-bidi: embed;
+  }
+}
+
+@layer utilities {
+  /* DESIGN_SYSTEM §2 — mirror only directional icons (chevrons, arrows, the send icon). */
+  [dir='rtl'] .icon-dir {
+    transform: scaleX(-1);
+  }
+
+  /* DESIGN_SYSTEM §4.2/§5.6 — the modal and drawer scrim (rgba from the design tokens). */
+  .overlay-scrim {
+    background-color: rgba(21, 37, 54, 0.4);
+  }
+
+  /* DESIGN_SYSTEM §5.9/§5.11 — no animation when the user asks for reduced motion. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 }

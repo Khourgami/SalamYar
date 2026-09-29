@@ -1,12 +1,11 @@
 import { Loader2 } from 'lucide-react'
 
+import { Skeleton } from '@/components/ui/Skeleton'
 import { NETWORK_ERROR, TRY_AGAIN } from '@/i18n/uiText'
 
-/** UI_SPEC §4 — loading pages show skeletons. */
-export function Skeleton({ className = '' }: { className?: string }) {
-  return <div className={`animate-pulse rounded bg-gray-200 ${className}`} />
-}
+export { Skeleton }
 
+/** UI_SPEC §4 — loading pages show skeletons. */
 export function LoadingState({ rows = 3 }: { rows?: number }) {
   return (
     <div className="space-y-3" role="status" aria-busy="true" data-testid="loading-state">

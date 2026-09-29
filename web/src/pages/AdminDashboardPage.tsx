@@ -8,7 +8,7 @@ import { EXPORT_TABLES, METRICS_GROUP_BY } from '@/api/types'
 import type { ExportTable, MetricsGroupBy } from '@/api/types'
 import { MetricsTable } from '@/components/admin/MetricsTable'
 import { EmptyState, ErrorState, InlineSpinner, LoadingState } from '@/components/States'
-import { Toast } from '@/components/Toast'
+import { Toast } from '@/components/ui/Toast'
 import {
   ADMIN_EXPORTS_TITLE,
   ADMIN_EXPORT,

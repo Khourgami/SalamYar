@@ -32,6 +32,11 @@ export const LOGIN_USERNAME = 'نام کاربری'
 export const LOGIN_PASSWORD = 'رمز عبور'
 export const LOGIN_SUBMIT = 'ورود'
 export const LOGIN_ERROR = 'نام کاربری یا رمز عبور اشتباه است'
+/** DESIGN_SYSTEM §5.2 — password show/hide toggle accessible names (no UI_SPEC source). */
+export const PASSWORD_SHOW = 'نمایش رمز'
+export const PASSWORD_HIDE = 'پنهان کردن رمز'
+/** DESIGN_SYSTEM §4.2 — mobile drawer menu button accessible name (no UI_SPEC source). */
+export const NAV_MENU = 'منو'
 
 /* ------------------------- doctors list ---------------------------- */
 
