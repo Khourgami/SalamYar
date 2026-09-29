@@ -68,7 +68,7 @@ def submit_evaluation(
     if sess.status != "completed":
         raise AppError(409, "SESSION_NOT_COMPLETED", "The session is not completed yet")
     if _is_evaluated(db, sess.id):
-        raise AppError(409, "VALIDATION_ERROR", "Session already evaluated")
+        raise AppError(409, "EVALUATION_LOCKED", "Session already evaluated")
     if body.comparison is not None:
         other = db.get(m.Session, body.comparison.compared_session_id)
         if (

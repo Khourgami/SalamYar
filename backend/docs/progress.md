@@ -8,7 +8,7 @@ Updated by the backend coder at the end of every task.
 | Task | Scope | Status |
 |---|---|---|
 | T1 | Repository housekeeping (root repo, no tracked secrets, B-001 superseded) | ✅ Done |
-| T2 | Error codes: 409 `EVALUATION_LOCKED` on second evaluation, 405/500 shape (D-018, D-019) | ⏳ Todo |
+| T2 | Error codes: 409 `EVALUATION_LOCKED` on second evaluation, 405/500 shape (D-018, D-019) | ✅ Done |
 | T3 | Owner-only session endpoints for every role, list order (D-020) | ⏳ Todo |
 | T4 | `TurnDecision` accepts a message on conclude (D-024) | ⏳ Todo |
 | T5 | Dev server: `data/dev.db`, `--seed`, `--delay-ms`, «خطا» trigger; `create-user --password-stdin` (D-029) | ⏳ Todo |
@@ -62,3 +62,4 @@ Per task: `uv run pytest -q` + `uv run ruff check .`, update this file, commit (
 - 2026-09-30 — T12 — CLI list-agents + smoke-test (in-memory run through real architectures, model check, table, exit codes), 16 offline tests. Real smoke test NOT run: no OPENROUTER_API_KEY. Public GET /models slug check (no key): 4/6 slugs exist; google/gemini-3-flash and google/gemini-3.1-pro are MISSING (see phase report) — 240 tests pass
 - 2026-09-30 — T13 — Dockerfile + .dockerignore (image builds and runs; API + CLI verified in container), README, DemoLLM tests; final: 243 tests, 97% coverage, guard 100%; phase report written
 - 2026-09-30 — Phase 2 T1 — root repository verified (`git rev-parse --show-toplevel` = project root, no `backend/.git`, no tracked `.env`/`backend/data/*`); B-001 superseded by D-027; phase-2 task table added — 243 tests pass (baseline)
+- 2026-09-30 — Phase 2 T2 — second evaluation → 409 `EVALUATION_LOCKED` (B-024; `test_evaluation_only_once` updated); new tests for 405 on a real route and 500 via a failing dependency (no stack trace); CCR #1/#2 accepted — 245 tests pass

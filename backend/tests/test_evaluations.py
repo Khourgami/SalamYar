@@ -138,7 +138,9 @@ def test_evaluation_only_once(lab: Lab) -> None:
     assert _evaluate(lab, sid).status_code == 201
     r = _evaluate(lab, sid)
     assert r.status_code == 409
-    assert r.json()["error"] == {"code": "VALIDATION_ERROR", "message": "Session already evaluated"}
+    assert r.json() == {
+        "error": {"code": "EVALUATION_LOCKED", "message": "Session already evaluated"}
+    }
 
 
 def test_evaluation_owner_only(lab: Lab) -> None:

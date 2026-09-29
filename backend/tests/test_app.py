@@ -60,3 +60,23 @@ def test_app_error_shape() -> None:
     r = _app_with_test_routes().get("/app-error")
     assert r.status_code == 409
     assert r.json() == {"error": {"code": "TURN_IN_PROGRESS", "message": "busy"}}
+
+
+def test_wrong_method_on_existing_route_returns_405_shape(client: TestClient) -> None:
+    r = client.delete("/api/v1/agents")
+    assert r.status_code == 405
+    assert r.json() == {"error": {"code": "METHOD_NOT_ALLOWED", "message": "Method Not Allowed"}}
+
+
+def test_unhandled_exception_in_real_app_returns_500_shape(client: TestClient) -> None:
+    from app.auth.deps import current_user
+    from app.main import app
+
+    def broken() -> None:
+        raise RuntimeError("db exploded at /secret/path")
+
+    app.dependency_overrides[current_user] = broken
+    r = client.get("/api/v1/agents")
+    assert r.status_code == 500
+    assert r.json() == {"error": {"code": "INTERNAL_ERROR", "message": "Internal server error"}}
+    assert "Traceback" not in r.text and "secret" not in r.text
