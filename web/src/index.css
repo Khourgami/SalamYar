@@ -85,6 +85,11 @@
     background-color: rgba(21, 37, 54, 0.4);
   }
 
+  /* DESIGN_SYSTEM §4.3 — the banner's warning-600 bottom border at 40% opacity. */
+  .banner-border {
+    border-bottom: 1px solid rgba(201, 138, 26, 0.4);
+  }
+
   /* DESIGN_SYSTEM §5.9/§5.11 — no animation when the user asks for reduced motion. */
   @media (prefers-reduced-motion: reduce) {
     *,
