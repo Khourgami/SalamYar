@@ -1,0 +1,20 @@
+# AI Triage Agent Lab — deployment (SYSTEM_OVERVIEW §5). Owned by the backend coder.
+#   docker compose up --build -d      → the app on http://localhost/ (port 80)
+# The backend is reachable only through the web container's nginx (/api → backend:8000).
+# Create users: see backend/README.md ("Docker Compose").
+
+services:
+  backend:
+    build: ./backend
+    env_file: ./backend/.env
+    volumes:
+      - ./backend/data:/app/data   # SQLite lab.db persists here
+    restart: unless-stopped
+
+  web:
+    build: ./web
+    ports: ["80:80"]
+    environment:
+      API_UPSTREAM: http://backend:8000
+    depends_on: [backend]
+    restart: unless-stopped

@@ -91,15 +91,33 @@ uv run pytest -q tests/test_guard.py --cov=app.agents.guard --cov-branch --cov-f
 uv run ruff check . && uv run ruff format .
 ```
 
-## Docker
+## Docker Compose (whole app, port 80)
+
+The root `../docker-compose.yml` runs two services: `backend` (this image; env from
+`backend/.env`; `backend/data` mounted at `/app/data`; port 8000 not published) and `web`
+(nginx serves the SPA on port 80 and proxies `/api` to `backend:8000`). Run it from the
+repository root:
+
+```powershell
+docker compose up --build -d          # http://localhost/  and  http://localhost/api/v1
+docker compose logs -f backend
+docker compose restart backend        # users and sessions persist in backend/data/lab.db
+docker compose down
+```
+
+Create a user inside the running backend container. Plain `python` in the slim image is the
+system interpreter without the dependencies, so use `uv run`, and use `-T` so stdin is piped:
+
+```powershell
+"secret123" | docker compose exec -T backend uv run python -m app.cli create-user --username dr.x --display-name "دکتر ..." --role evaluator --password-stdin
+```
+
+Single container without compose:
 
 ```bash
 docker build -t triage-backend .
 docker run -p 8000:8000 --env-file .env -v "$(pwd)/data:/app/data" triage-backend
 ```
-
-The SQLite database lives in `/app/data` (mount it as a volume). Create users inside the container
-with `docker exec -it <container> uv run python -m app.cli create-user ...`.
 
 ## Layout
 
@@ -116,7 +134,8 @@ config/agents.yaml
 tests/
 ```
 
-## Git note
+## Git
 
-The workspace had no repository, so this folder has its own git repository (see B-001 in
-`docs/decisions.md` for how to fold it into a root repository later).
+One repository at the project root (D-027). Stage and commit only backend paths, e.g.
+`git add -- backend docker-compose.yml` and `git commit -m "backend: ..." -- backend docker-compose.yml`
+(the web coder shares the index). Never commit `.env` or `data/`.

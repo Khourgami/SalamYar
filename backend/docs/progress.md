@@ -13,7 +13,7 @@ Updated by the backend coder at the end of every task.
 | T4 | `TurnDecision` accepts a message on conclude (D-024) | ✅ Done |
 | T5 | Dev server: `data/dev.db`, `--seed`, `--delay-ms`, «خطا» trigger; `create-user --password-stdin` (D-029) | ✅ Done |
 | T6 | Gemini slugs and the real smoke test (D-022, D-025) | ⛔ blocked (no key) — step 1 done: Gemini slugs confirmed and set (B-030) |
-| T7 | Root `docker-compose.yml` | ⏳ Todo |
+| T7 | Root `docker-compose.yml` | ✅ Done |
 | T8 | Docs and phase report | ⏳ Todo |
 
 ## Phase 1 status
@@ -67,3 +67,4 @@ Per task: `uv run pytest -q` + `uv run ruff check .`, update this file, commit (
 - 2026-09-30 — Phase 2 T4 — `TurnDecision` accepts and discards a message on conclude (B-026, B-004 partly superseded); `test_turn_decision_conclude_requires_empty_message` replaced by `..._accepts_and_discards_message`; new tests: farewell parses first time (no repair), empty ask → repair, stored/API backstage without `message_to_patient` — 284 tests pass
 - 2026-09-30 — Phase 2 T5 — dev server `--db` (default `data/dev.db`, `lab.db` refused), `--seed`, `--delay-ms` (default 1500), «خطا» one-shot failure (session id via ASGI contextvar + transcript hash), `create-user --password-stdin`, README (B-027…B-029); manual run: `app.dev_server --seed` without `.env` → login `doctor` 200, one turn 1.57 s; PowerShell pipe to `--password-stdin` verified — 296 tests pass
 - 2026-09-30 — Phase 2 T6 — blocked (no key): no `backend/.env`. Step 1 only: public `/models` confirms `google/gemini-3-flash-preview` and `google/gemini-3.1-pro-preview`, set for the 4 Gemini agents (B-030); smoke test, table extension (per-turn latency is missing), and provider fixes not run — 296 tests pass
+- 2026-09-30 — Phase 2 T7 — root `docker-compose.yml` (backend + web); verified with a temporary `.env`: build OK, `GET /` 200 HTML, `GET /api/v1/agents` 401 contract shape, user via `exec -T backend uv run python -m app.cli … --password-stdin`, login 200, login still 200 after `restart backend`, `down` (B-031); README compose section — 296 tests pass
