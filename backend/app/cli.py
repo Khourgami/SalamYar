@@ -99,11 +99,15 @@ async def run_smoke(
     configs: Sequence[AgentConfig],
     llm: LLMClient,
     available: set[str] | None,
+    json_path: str | None = None,
 ) -> int:
-    from app.smoke import exit_code, format_table, smoke_test
+    from app.smoke import exit_code, format_table, smoke_test, write_json
 
     results = await smoke_test(configs, llm, available)
     print(format_table(results))
+    if json_path:
+        write_json(results, json_path)
+        print(f"\nwrote {json_path}")
     missing = [r for r in results if r.model_found is False]
     if missing:
         print("\nModels not found on OpenRouter (fix config/agents.yaml):")
@@ -135,7 +139,7 @@ def cmd_smoke_test(args: argparse.Namespace) -> int:
     except (LLMError, OSError) as exc:
         print(f"error: cannot list models: {exc}", file=sys.stderr)
         return 2
-    return asyncio.run(run_smoke(configs, get_llm(), available))
+    return asyncio.run(run_smoke(configs, get_llm(), available, args.json))
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -161,6 +165,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--agent", help="only this agent id")
     p.add_argument("--include-disabled", action="store_true", help="also test disabled agents")
     p.add_argument("--config", help="agents.yaml path (default: AGENTS_CONFIG_PATH)")
+    p.add_argument("--json", metavar="PATH", help="also write the per-agent results as JSON")
     p.set_defaults(func=cmd_smoke_test)
     return parser
 

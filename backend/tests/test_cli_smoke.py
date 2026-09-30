@@ -9,15 +9,18 @@ from app.agents.config import AgentConfig
 from app.llm.client import LLMError
 from app.llm.fake import FakeLLM
 from app.smoke import (
+    JSON_TEXT_LIMIT,
     PATIENT_MESSAGES,
     SmokeResult,
     exit_code,
     fetch_model_ids,
     format_table,
+    result_to_dict,
     run_agent,
     smoke_test,
+    write_json,
 )
-from tests.lab import ASK, ASSESSMENT, B_ASK, CONCLUDE, TEST_AGENTS
+from tests.lab import ASK, ASSESSMENT, B_ASK, B_CONCLUDE, CONCLUDE, TEST_AGENTS
 
 
 def _cfg(arch: str, agent_id: str | None = None, model: str = "m/x") -> AgentConfig:
@@ -97,6 +100,97 @@ async def test_smoke_test_skips_missing_models() -> None:
     assert exit_code([]) == 1
 
 
+class StepClock:
+    """Fake clock: every read advances by the next scripted delta (seconds)."""
+
+    def __init__(self, *deltas: float) -> None:
+        self.now = 0.0
+        self.deltas = list(deltas)
+
+    def __call__(self) -> float:
+        self.now += self.deltas.pop(0) if self.deltas else 0.0
+        return self.now
+
+
+async def test_run_agent_per_turn_latencies() -> None:
+    # reads: start, t1 start, t1 end, t2 start, t2 end, conclude start, conclude end, total
+    clock = StepClock(0, 0, 2.0, 0, 3.5, 0, 9.25, 0)
+    res = await run_agent(_cfg("simple"), FakeLLM([ASK, ASK, CONCLUDE]), clock=clock)
+    assert res.turn_latencies_ms == {"turn1": 2000, "turn2": 3500, "conclude": 9250}
+    assert res.mean_turn_ms == pytest.approx(4916.67, abs=0.01)
+    assert res.max_turn_ms == 9250
+    assert res.latency_ms == 14750
+    assert res.result_step == "conclude" and res.llm_calls == 3
+    assert set(res.replies) == {"turn1", "turn2", "conclude"}
+
+
+async def test_run_agent_failed_step_latency_recorded() -> None:
+    clock = StepClock(0, 0, 1.0, 0, 4.0, 0)
+    res = await run_agent(_cfg("simple"), FakeLLM([ASK, "bad", "bad"]), clock=clock)
+    assert res.turn_latencies_ms == {"turn1": 1000, "turn2": 4000}
+    assert "turn2" not in res.replies and res.result_step is None
+
+
+async def test_run_agent_early_result_has_no_conclude_latency() -> None:
+    res = await run_agent(_cfg("simple"), FakeLLM([CONCLUDE]))
+    assert list(res.turn_latencies_ms) == ["turn1"]
+    assert res.result_step == "turn1" and res.triage_level is not None
+
+
+async def test_structured_conclusion_turn_calls_tagged() -> None:
+    llm = FakeLLM([B_ASK, B_CONCLUDE, ASSESSMENT])
+    res = await run_agent(_cfg("structured"), llm)
+    data = result_to_dict(res)
+    assert data["result_step"] == "turn2"
+    assert [(c["step"], c["purpose"]) for c in data["calls"]] == [
+        ("turn1", "turn"),
+        ("turn2", "turn"),
+        ("turn2", "assessment"),
+    ]
+    assert data["steps"] == {"turn1": "y", "turn2": "y", "conclude": "y"}
+    assert "conclude" not in data["turn_latency_ms"]
+
+
+async def test_result_to_dict_counts_and_config() -> None:
+    res = await run_agent(_cfg("simple"), FakeLLM(["oops", ASK, ASK, CONCLUDE]))
+    data = result_to_dict(res)
+    assert data["llm_calls"] == 4 and data["repair_calls"] == 1
+    assert data["cost_usd"] == pytest.approx(0.004)
+    assert data["ok"] is True and data["error"] is None
+    assert (data["architecture"], data["output_mode"]) == ("simple", "json_object")
+    assert (data["send_temperature"], data["reasoning_effort"]) == (True, "low")
+    first, repair = data["calls"][0], data["calls"][1]
+    assert (first["purpose"], first["parsed_ok"], first["output_excerpt"]) == (
+        "turn",
+        False,
+        "oops",
+    )
+    assert first["error"] and first["latency_ms"] == 5
+    assert (repair["purpose"], repair["attempt"], repair["parsed_ok"]) == ("repair", 2, True)
+    assert repair["output_excerpt"] is None  # only failed outputs are kept
+    assert data["call_errors"] == [first["error"]]
+
+
+async def test_result_to_dict_truncates_error_text() -> None:
+    long_error = LLMError("HTTP 400: " + "x" * 2000)
+    res = await run_agent(_cfg("simple"), FakeLLM([long_error]))
+    data = result_to_dict(res)
+    assert data["ok"] is False and data["steps"]["turn1"] == "n"
+    assert len(data["error"]) == JSON_TEXT_LIMIT
+    assert data["error"].startswith("LLMError: HTTP 400: xxx")
+    assert len(data["call_errors"]) == 1 and len(data["call_errors"][0]) == JSON_TEXT_LIMIT
+    assert data["calls"][0]["latency_ms"] is None  # transport failure: no response
+
+
+def test_write_json_missing_model(tmp_path: Path) -> None:
+    path = tmp_path / "sub" / "run.json"
+    write_json([SmokeResult("b-x", "x/y", False, error="model not found")], path)
+    data = json.loads(path.read_text(encoding="utf-8"))
+    assert data[0]["agent_id"] == "b-x" and data[0]["model_found"] is False
+    assert data[0]["calls"] == [] and data[0]["mean_turn_latency_ms"] is None
+    assert data[0]["architecture"] is None
+
+
 # --- formatting ----------------------------------------------------------------------------
 
 
@@ -114,6 +208,25 @@ def test_format_table() -> None:
     assert "| a-one " in lines[2] and "| 12.3 " in lines[2] and "0.00123" in lines[2]
     assert "| n " in lines[3] and "model not found" in lines[3]
     assert "| ? " in lines[4] and "E" * 59 + "…" in lines[4] and "E" * 60 not in lines[4]
+
+
+def test_format_table_turn_columns() -> None:
+    r = SmokeResult("a-one", "x/one", True, "y", "y", "y", 2, 15000, 0.01)
+    r.turn_latencies_ms = {"turn1": 2000, "turn2": 4500, "conclude": 8500}
+    r.traces = [object()] * 5  # type: ignore[list-item]
+    header, _, row = format_table([r]).splitlines()
+    cells = [c.strip() for c in row.strip("|").split("|")]
+    columns = [c.strip() for c in header.strip("|").split("|")]
+    values = dict(zip(columns, cells, strict=True))
+    assert (values["t1_s"], values["t2_s"], values["concl_s"]) == ("2.0", "4.5", "8.5")
+    assert (values["mean_s"], values["max_s"]) == ("5.0", "8.5")
+    assert (values["calls"], values["repairs"], values["total_s"]) == ("5", "2", "15.0")
+    missing = format_table([SmokeResult("b", "m", False, error="model not found")])
+    header, _, row = missing.splitlines()
+    columns = [c.strip() for c in header.strip("|").split("|")]
+    values = dict(zip(columns, [c.strip() for c in row.strip("|").split("|")], strict=True))
+    assert [values[c] for c in ("t1_s", "t2_s", "concl_s", "mean_s", "max_s")] == ["-"] * 5
+    assert values["calls"] == "0"
 
 
 # --- /models -------------------------------------------------------------------------------
@@ -185,6 +298,22 @@ def test_smoke_cli_selected_agent_ok(
     out = capsys.readouterr().out
     assert rc == 0, out
     assert "a-simple" in out and "b-struct" not in out
+
+
+def test_smoke_cli_json_file(
+    agents_file: str, offline_smoke: FakeLLM, tmp_path: Path, capsys: pytest.CaptureFixture
+) -> None:
+    offline_smoke.push(ASK, ASK, CONCLUDE)
+    path = tmp_path / "run.json"
+    rc = cli.main(
+        ["smoke-test", "--agent", "a-simple", "--config", agents_file, "--json", str(path)]
+    )
+    assert rc == 0
+    assert f"wrote {path}" in capsys.readouterr().out
+    data = json.loads(path.read_text(encoding="utf-8"))
+    assert [d["agent_id"] for d in data] == ["a-simple"]
+    assert data[0]["ok"] is True and data[0]["model_found"] is True
+    assert set(data[0]["turn_latency_ms"]) == {"turn1", "turn2", "conclude"}
 
 
 def test_smoke_cli_enabled_agents_missing_models_fail(

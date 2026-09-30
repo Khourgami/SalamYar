@@ -3,6 +3,21 @@
 Updated by the backend coder at the end of every task.
 
 ## Current status
+**Phase 2b — Real-model verification: 🔄 in progress (2026-09-30).**
+
+- Key valid (`GET /key` 200: limit USD 50, remaining 50, usage 0). Phase budget: USD 5.
+- Next: T3 real smoke test ×2.
+
+| Task | Scope | Status |
+|---|---|---|
+| T1 | Preconditions: `.env` present, key valid without spending | ✅ Done |
+| T2 | Smoke table: per-turn latency, calls, repairs; `--json` | ✅ Done |
+| T3 | Real smoke test ×2 and D-025 rule-table fixes | ⏳ Next |
+| T4 | Latency and repair check against NFR-2 | ⏳ |
+| T5 | Real-model smoke through Docker Compose and nginx | ⏳ |
+| T6 | Report `reports/phase-2b-real-model-verification.md` | ⏳ |
+
+## Phase 2 status
 **Phase 2 — Contract v1.1, real-model verification, integration readiness: ✅ complete except T6 (blocked: no `OPENROUTER_API_KEY`) (2026-09-30).** Report: `reports/phase-2-integration-readiness.md`.
 
 - 296 tests pass; coverage 98% (`app/`), guard 100% line+branch; ruff clean; `docker compose up --build` serves the app on :80.
@@ -74,3 +89,5 @@ Per task: `uv run pytest -q` + `uv run ruff check .`, update this file, commit (
 - 2026-09-30 — Phase 2 T6 — blocked (no key): no `backend/.env`. Step 1 only: public `/models` confirms `google/gemini-3-flash-preview` and `google/gemini-3.1-pro-preview`, set for the 4 Gemini agents (B-030); smoke test, table extension (per-turn latency is missing), and provider fixes not run — 296 tests pass
 - 2026-09-30 — Phase 2 T7 — root `docker-compose.yml` (backend + web); verified with a temporary `.env`: build OK, `GET /` 200 HTML, `GET /api/v1/agents` 401 contract shape, user via `exec -T backend uv run python -m app.cli … --password-stdin`, login 200, login still 200 after `restart backend`, `down` (B-031); README compose section — 296 tests pass
 - 2026-09-30 — Phase 2 T8 — README (v1.1, dev server, `--password-stdin`, compose, smoke test), progress, decisions, phase report `reports/phase-2-integration-readiness.md` — 296 tests pass, guard 100%, ruff clean
+- 2026-09-30 — Phase 2b T1 — the secrets file existed as untracked, **not git-ignored** `backend/env`; renamed to `backend/.env` (its own header names that path) so it is ignored and loaded (B-032). `OPENROUTER_API_KEY` and `JWT_SECRET` present (values not printed). `GET https://openrouter.ai/api/v1/key` → 200: limit 50, limit_remaining 50, usage 0 (USD) — no tests
+- 2026-09-30 — Phase 2b T2 — smoke table gains `t1_s`/`t2_s`/`concl_s`, mean/max turn latency, LLM calls, repairs, total; `--json PATH` writes one object per agent (config, per-step latency, per-call trace incl. step/purpose/latency/cost/tokens, errors and failed-output excerpts ≤ 500 chars, replies, final level) (B-033). 9 new FakeLLM tests (fake clock) — 305 tests pass
