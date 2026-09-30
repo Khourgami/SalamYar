@@ -227,6 +227,7 @@ def _clip(text: str | None) -> str | None:
 def result_to_dict(r: SmokeResult) -> dict[str, Any]:
     """One agent as a JSON-able dict (the `--json` file format)."""
     cfg = r.config
+    failed_steps = {s for s in STEPS if getattr(r, s) == "n"}
     calls = []
     for step, t in zip(r.trace_steps, r.traces, strict=True):
         resp = t.response
@@ -243,8 +244,10 @@ def result_to_dict(r: SmokeResult) -> dict[str, Any]:
                 "reasoning_tokens": resp.reasoning_tokens if resp else None,
                 "model_reported": resp.model_reported if resp else None,
                 "error": _clip(t.error),
-                # the raw output only when it failed validation (trace excerpt for the report)
-                "output_excerpt": _clip(resp.text) if resp and not t.parsed_ok else None,
+                # raw output only when it failed validation or its step failed (trace excerpt)
+                "output_excerpt": (
+                    _clip(resp.text) if resp and (not t.parsed_ok or step in failed_steps) else None
+                ),
             }
         )
     return {

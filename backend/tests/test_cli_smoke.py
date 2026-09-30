@@ -182,6 +182,17 @@ async def test_result_to_dict_truncates_error_text() -> None:
     assert data["calls"][0]["latency_ms"] is None  # transport failure: no response
 
 
+async def test_result_to_dict_keeps_output_of_failed_step() -> None:
+    # parses fine but violates the forced conclusion → the step fails; keep the output
+    res = await run_agent(_cfg("simple"), FakeLLM([ASK, ASK, ASK]))
+    data = result_to_dict(res)
+    assert data["steps"] == {"turn1": "y", "turn2": "y", "conclude": "n"}
+    assert "after being told to conclude" in data["error"]
+    concl = data["calls"][2]
+    assert concl["parsed_ok"] is True and concl["output_excerpt"] == ASK[:JSON_TEXT_LIMIT]
+    assert data["calls"][0]["output_excerpt"] is None
+
+
 def test_write_json_missing_model(tmp_path: Path) -> None:
     path = tmp_path / "sub" / "run.json"
     write_json([SmokeResult("b-x", "x/y", False, error="model not found")], path)

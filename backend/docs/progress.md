@@ -6,14 +6,15 @@ Updated by the backend coder at the end of every task.
 **Phase 2b — Real-model verification: 🔄 in progress (2026-09-30).**
 
 - Key valid (`GET /key` 200: limit USD 50, remaining 50, usage 0). Phase budget: USD 5.
-- Next: T3 real smoke test ×2.
+- Spent so far: USD 0.80 (run 1 0.41 + run 2 0.39; `/key` usage 0.76).
+- Next: T5 compose + nginx real-model smoke.
 
 | Task | Scope | Status |
 |---|---|---|
 | T1 | Preconditions: `.env` present, key valid without spending | ✅ Done |
 | T2 | Smoke table: per-turn latency, calls, repairs; `--json` | ✅ Done |
-| T3 | Real smoke test ×2 and D-025 rule-table fixes | ⏳ Next |
-| T4 | Latency and repair check against NFR-2 | ⏳ |
+| T3 | Real smoke test ×2 and D-025 rule-table fixes | ✅ Done — no config change (B-034) |
+| T4 | Latency and repair check against NFR-2 | ✅ Done (analysis in report) |
 | T5 | Real-model smoke through Docker Compose and nginx | ⏳ |
 | T6 | Report `reports/phase-2b-real-model-verification.md` | ⏳ |
 
@@ -91,3 +92,5 @@ Per task: `uv run pytest -q` + `uv run ruff check .`, update this file, commit (
 - 2026-09-30 — Phase 2 T8 — README (v1.1, dev server, `--password-stdin`, compose, smoke test), progress, decisions, phase report `reports/phase-2-integration-readiness.md` — 296 tests pass, guard 100%, ruff clean
 - 2026-09-30 — Phase 2b T1 — the secrets file existed as untracked, **not git-ignored** `backend/env`; renamed to `backend/.env` (its own header names that path) so it is ignored and loaded (B-032). `OPENROUTER_API_KEY` and `JWT_SECRET` present (values not printed). `GET https://openrouter.ai/api/v1/key` → 200: limit 50, limit_remaining 50, usage 0 (USD) — no tests
 - 2026-09-30 — Phase 2b T2 — smoke table gains `t1_s`/`t2_s`/`concl_s`, mean/max turn latency, LLM calls, repairs, total; `--json PATH` writes one object per agent (config, per-step latency, per-call trace incl. step/purpose/latency/cost/tokens, errors and failed-output excerpts ≤ 500 chars, replies, final level) (B-033). 9 new FakeLLM tests (fake clock) — 305 tests pass
+- 2026-09-30 — Phase 2b T3 — real smoke run 1: 11/12 pass (USD 0.41); run 2: 10/12 pass (USD 0.39). No provider rejected any parameter; greeting-first conversations handled by all A agents → no config change, no greeting fallback (B-034). Kept failures: `a-gemini3flash` asks after the forced-conclude line (both runs); `b-deepseekv4pro` run 2 invalid JSON surviving repair (reasoning used 3998/4000 tokens). Calls of 68–86 s did not time out (B-035). `--json` keeps outputs of failed steps (+1 test) — 306 tests pass
+- 2026-09-30 — Phase 2b T4 — final-run turn latency p50 12.4 s / p90 40.6 s (36 turns); A question turns p50 6.3 s, B 13.8 s (pooled); `b-deepseekv4pro` finish turn 105.6 / 106.8 s > 90 s client timeout in both runs; repair rate 0–25 % per agent. Recommendations in the report — no tests
