@@ -1,6 +1,6 @@
 # Backend Architecture — AI Triage Agent Lab (PoC)
 
-**Status:** v1.1 (2026-09-30). Changes from v1.0: §5 hard-cap rule (D-023), §6.1 greeting fallback (D-025), §8 Gemini slugs (D-022), §12 access rule (D-020). Implementation-level additions to the §5 interfaces are recorded in B-011.
+**Status:** v1.2 (2026-09-30). v1.2: §6.3 turn deadline (D-038), §8 model set and per-model config (D-034, D-036), §7 and §8a token/cost accounting (D-035). Changes from v1.0 in v1.1: §5 hard-cap rule (D-023), §6.1 greeting fallback (D-025), §8 Gemini slugs (D-022), §12 access rule (D-020). Implementation-level additions to the §5 interfaces are recorded in B-011.
 **Scope:** everything inside `backend/`. The system-level view (repo layout, deployment, doc ownership) is in `../../docs/SYSTEM_OVERVIEW.md`.
 **Read with:** `../../docs/PRD.md`, `../../docs/API_CONTRACT.md`, `../../docs/decisions.md`, `AGENT_SPEC.md`
 
@@ -191,7 +191,9 @@ Backstage per turn: the full `TurnDecision` minus `message_to_patient`.
 4. On a second failure, raise `AgentOutputError`. The session service stores the error. The patient sees `ERROR_FA` (`AGENT_SPEC.md §2.3`), and the session stays `active` so the evaluator can resend.
 5. Every attempt is written to `llm_calls` (success or failure).
 
-HTTP/network errors: one retry after 2 s. Timeout: 60 s.
+HTTP/network errors: one retry after 2 s.
+
+**Deadlines (D-038).** A whole turn (`next_turn` or `force_conclude`: every call, transport retry, and repair) has an 80 s wall-clock budget. Each call gets a total deadline of `min(50 s, remaining budget)`, enforced around the whole request (not only between reads). A retry or repair starts only if ≥ 15 s remain. On expiry: trace the attempt with error `deadline_exceeded`, return 502 `AGENT_ERROR`, release the lock. New settings `LLM_CALL_DEADLINE_SECONDS=50` and `TURN_DEADLINE_SECONDS=80`; `LLM_TIMEOUT_SECONDS` stays as the httpx per-read timeout.
 
 ### 6.4 Guard (deterministic; `guard.py`)
 
@@ -215,11 +217,11 @@ JSON columns are `TEXT` containing JSON. All ids are UUID4 strings. All timestam
 |---|---|
 | `users` | id, username (unique), display_name, password_hash, role, created_at |
 | `agents` | id (from yaml), display_name, description, architecture, model, config_json, enabled, updated_at. Synced from yaml at startup and on reload. |
-| `sessions` | id, user_id, agent_id, agent_snapshot_json (config at start), status (`active`/`completed`), end_reason (`agent_concluded`/`max_questions`/`evaluator_ended`/null), questions_asked, clinical_state_json, created_at, completed_at, total_cost_usd, total_llm_latency_ms, turn_in_progress (bool) |
+| `sessions` | id, user_id, agent_id, agent_snapshot_json (config at start), status (`active`/`completed`), end_reason (`agent_concluded`/`max_questions`/`evaluator_ended`/null), questions_asked, clinical_state_json, created_at, completed_at, total_cost_usd, total_llm_latency_ms, turn_in_progress (bool); v1.2: llm_call_count, total_prompt_tokens, total_completion_tokens, total_reasoning_tokens, total_estimated_cost_usd (§8a) |
 | `messages` | id, session_id, seq, role (`agent`/`patient`), kind (`greeting`/`question`/`result`/`error` for agent; `text` for patient), text, created_at, latency_ms (agent only) |
 | `turn_backstage` | id, session_id, message_id (the agent message), data_json |
 | `assessments` | id, session_id (unique), result_json (final), raw_result_json, guard_report_json, created_at |
-| `llm_calls` | id, session_id, message_id (nullable), purpose (`turn`/`assessment`/`repair`), model, request_json, response_text, parsed_ok, error, prompt_tokens, completion_tokens, reasoning_tokens, cost_usd, latency_ms, attempt, created_at |
+| `llm_calls` | id, session_id, message_id (nullable), purpose (`turn`/`assessment`/`repair`), model, request_json, response_text, parsed_ok, error, prompt_tokens, completion_tokens, reasoning_tokens, cost_usd, latency_ms, attempt, created_at; v1.2: price_input_per_mtok, price_output_per_mtok, estimated_cost_usd (§8a) |
 | `message_feedback` | id, message_id, user_id, rating (`up`/`down`), note, updated_at. Unique per (message_id, user_id). |
 | `evaluations` | id, session_id (unique), user_id, data_json (the full form), created_at, updated_at |
 
@@ -240,15 +242,15 @@ defaults:
     emergency_threshold: 0.20
 
 agents:
-  - id: b-sonnet5
+  - id: b-sonnet55
     display_name: "دکتر ۱"
     architecture: structured
-    model: anthropic/claude-sonnet-5      # VERIFY slug
+    model: anthropic/claude-sonnet-5.5
     enabled: true
-  - id: a-sonnet5
+  - id: a-sonnet55
     display_name: "دکتر ۲"
     architecture: simple
-    model: anthropic/claude-sonnet-5
+    model: anthropic/claude-sonnet-5.5
     enabled: true
   # ... one entry per architecture × model, see table below
 ```
@@ -257,20 +259,32 @@ The registry validates the file with Pydantic on load (fails fast: unknown archi
 
 Initial agent set:
 
-| id | arch | model (verify slug) | enabled |
+| id | arch | model (D-022, D-034) | enabled |
 |---|---|---|---|
-| b-sonnet5 | structured | anthropic/claude-sonnet-5 | ✓ |
+| b-sonnet55 | structured | anthropic/claude-sonnet-5.5 | ✓ |
 | b-gpt54 | structured | openai/gpt-5.4 | ✓ |
-| b-gemini31pro | structured | google/gemini-3.1-pro-preview (D-022) | ✓ |
-| b-gpt5mini | structured | openai/gpt-5-mini | ✓ |
-| b-gemini3flash | structured | google/gemini-3-flash-preview (D-022) | ✓ |
-| b-deepseekv4pro | structured | deepseek/deepseek-v4-pro | ✓ |
-| a-sonnet5 | simple | anthropic/claude-sonnet-5 | ✓ |
+| b-gemini31pro | structured | google/gemini-3.1-pro-preview | ✓ |
+| b-gpt54mini | structured | openai/gpt-5.4-mini | ✓ |
+| b-gemini3flash | structured | google/gemini-3-flash-preview | ✓ |
+| b-deepseekv4pro | structured | deepseek/deepseek-v4-pro-0813 (D-036: `reasoning_effort: minimal`, `max_tokens: 8000`) | ✓ (subject to the D-036 gate) |
+| b-gptoss120b | structured | openai/gpt-oss-120b | ✓ |
+| a-sonnet55 | simple | anthropic/claude-sonnet-5.5 | ✓ |
 | a-gpt54 | simple | openai/gpt-5.4 | ✓ |
-| a-gemini31pro | simple | google/gemini-3.1-pro-preview (D-022) | ✗ |
-| a-gpt5mini | simple | openai/gpt-5-mini | ✗ |
-| a-gemini3flash | simple | google/gemini-3-flash-preview (D-022) | ✗ |
-| a-deepseekv4pro | simple | deepseek/deepseek-v4-pro | ✗ |
+| a-gemini31pro | simple | google/gemini-3.1-pro-preview | ✗ |
+| a-gpt54mini | simple | openai/gpt-5.4-mini | ✗ |
+| a-gemini3flash | simple | google/gemini-3-flash-preview | ✗ |
+| a-deepseekv4pro | simple | deepseek/deepseek-v4-pro-0813 (D-036 config) | ✗ |
+| a-gptoss120b | simple | openai/gpt-oss-120b | ✗ |
+
+The ids `b-sonnet5`, `a-sonnet5`, `b-gpt5mini`, `a-gpt5mini` are retired (D-034); per B-014 they stay in the `agents` table as disabled.
+
+### 8a. Pricing and cost accounting (D-035)
+
+`agents.yaml` has a top-level `pricing` map keyed by model slug: `{input_per_mtok, output_per_mtok, source, as_of}` in USD per 1M tokens. Every model used by any agent (enabled or not) must have an entry; the registry fails fast otherwise. Values are a snapshot of OpenRouter `/models` pricing unless the product owner overrides them.
+
+- **Reported cost** (`usage.cost` from OpenRouter) stays the source of truth for `total_cost_usd` and all metrics.
+- **Estimated cost** per call = `prompt_tokens × input + billable_output_tokens × output` / 1e6, stored in `llm_calls.estimated_cost_usd` with the price snapshot used. It is a cross-check and a fallback for analysis; it never replaces the reported cost in the API.
+- Session totals (`llm_call_count`, `total_prompt_tokens`, `total_completion_tokens`, `total_reasoning_tokens`, `total_estimated_cost_usd`) are kept on `sessions`, updated after every attempt.
 
 Display names "دکتر ۱" … "دکتر ۱۲" are assigned in a shuffled order (not grouped by model).
 
@@ -329,7 +343,9 @@ Aggregations are computed per agent, per architecture, and per model:
 | `CORS_ORIGINS` | `http://localhost:5173` | Comma-separated |
 | `DATABASE_PATH` | `data/lab.db` | |
 | `AGENTS_CONFIG_PATH` | `config/agents.yaml` | |
-| `LLM_TIMEOUT_SECONDS` | `60` | |
+| `LLM_TIMEOUT_SECONDS` | `60` | httpx per-read timeout |
+| `LLM_CALL_DEADLINE_SECONDS` | `50` | Total deadline per LLM call (D-038) |
+| `TURN_DEADLINE_SECONDS` | `80` | Total deadline per turn, all calls included (D-038) |
 
 ## 14. Local development
 

@@ -1,6 +1,6 @@
 # UI Specification — Triage Agent Lab (PoC)
 
-**Status:** v1.1 (2026-09-30)
+**Status:** v1.2 (2026-09-30) — v1.2 changes: §3.3 stats (tokens, cost hidden until evaluated), slow-turn hint (D-039), §3.5 new metric columns (D-035).
 **Owner:** product (Vahid + Claude chat). The frontend coder implements it and does not change it without a recorded decision.
 **Scope:** everything inside `web/`. Types and endpoints come from `../../docs/API_CONTRACT.md` (v1.1); do not invent fields.
 
@@ -76,7 +76,7 @@ On desktop a brand panel sits beside the form: the logo mark, the title «آزم
 - Chat bubbles. Agent messages are on the right with the label = the agent's `display_name`. Patient messages are on the left with the label «شما (بیمار)».
 - Under each agent message (kinds `question`/`result`): small 👍 👎 buttons and a «یادداشت» link that opens an inline textarea. Saving calls `PUT /messages/:id/feedback`; toggling off calls `DELETE`. Feedback is editable until the evaluation is submitted. Feedback controls exist only on `/sessions/:id` (the owner's page); `/admin/sessions/:id` shows feedback read-only (D-020).
 - Input box with placeholder «پیام خود را بنویسید…» and a `ارسال` button. Enter sends; Shift+Enter inserts a newline.
-- While a turn is running: disable the input and show a typing bubble «پزشک در حال بررسی…». The client timeout is 90 s.
+- While a turn is running: disable the input and show a typing bubble «پزشک در حال بررسی…». If the turn is still running after 15 s, add a second line in the bubble (caption, muted): «پاسخ ممکن است تا یک دقیقه طول بکشد.» (D-039). The client timeout is 90 s.
 - Button `پایان گفتگو و دریافت نتیجه`. It first shows a confirm dialog: «گفتگو پایان یابد و پزشک مجازی نتیجه را اعلام کند؟». Then it calls `POST /sessions/:id/finish`.
 - An `error` message renders as a gray bubble with the text plus a `ارسال دوباره` button that resends the last patient text.
 - A small counter: «تعداد سؤال‌ها: X».
@@ -97,7 +97,7 @@ On desktop a brand panel sits beside the form: the logo mark, the title «آزم
 | Missing info | Bullet list «اطلاعاتی که به دست نیامد» |
 | Clinical summary | Titled blocks: شکایت اصلی · شرح حال فعلی · سوابق مرتبط · داروها · حساسیت‌ها · موارد منفی مهم · دلیل ارزیابی |
 | Guard flags | If there are any: small yellow chips with the §7.5 labels |
-| Stats | تعداد سؤال · مدت گفتگو · میانگین زمان پاسخ · هزینه (USD, 4 decimals) |
+| Stats | تعداد سؤال · مدت گفتگو · میانگین زمان پاسخ. Then, **only when the values are non-null** (after evaluation, or for admins): هزینه (USD, 4 decimals) · تعداد فراخوانی مدل · توکن ورودی · توکن خروجی · توکن استدلال (Persian digits with thousands separators). Never show a placeholder for a hidden value. |
 | Out-of-scope | If `out_of_scope_pediatric`: a note «بیمار زیر ۱۲ سال — خارج از محدوده ابزار» |
 
 **B. Backstage panel** «پشت صحنه: استدلال پزشک مجازی» (collapsible, open by default)
@@ -145,7 +145,8 @@ Lists only the caller's own sessions, for admins too (`GET /sessions`). A table 
   - کم‌تریاژ (red if > 0), کم‌تریاژ اورژانس, بیش‌تریاژ, تطابق تریاژ, تطابق تخصص
   - the mean of each KPI
   - مجموع موارد ایمنی
-  - میانگین سؤال, p50/p90 زمان, میانگین هزینه
+  - میانگین سؤال, p50/p90 زمان, میانگین هزینه, هزینه کل
+  - میانگین فراخوانی مدل, میانگین توکن ورودی, میانگین توکن خروجی, میانگین توکن استدلال
   - 👍/👎, برد/باخت/مساوی
   - ارتقای کف ایمنی
 - Rates are shown as percentages and scores with 1 decimal.

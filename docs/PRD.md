@@ -1,6 +1,6 @@
 # PRD — AI Triage Agent Lab (PoC / Demo)
 
-**Status:** v1.0 (approved for PoC build)
+**Status:** v1.1 (approved for PoC build; §11 model set updated 2026-09-30)
 **Owner:** Vahid
 **Related docs:** `SYSTEM_OVERVIEW.md`, `API_CONTRACT.md`, `decisions.md` (this folder) · `backend/docs/BACKEND_ARCHITECTURE.md`, `backend/docs/AGENT_SPEC.md` · `web/docs/UI_SPEC.md`
 
@@ -125,14 +125,14 @@ Computed per agent, and also per architecture and per model:
 | ID | Requirement |
 |---|---|
 | NFR-1 | Persian UI, RTL, and a readable Persian font. Works on desktop and mobile browsers. |
-| NFR-2 | Latency target per agent turn: p50 ≤ 8 s, p90 ≤ 20 s. The LLM timeout is 60 s with one retry. |
+| NFR-2 | Latency target per agent turn (D-037): architecture A p50 ≤ 8 s, p90 ≤ 25 s; architecture B p50 ≤ 20 s, p90 ≤ 45 s; any turn ≤ 75 s. A whole turn is bounded to 80 s by the backend (D-038). |
 | NFR-3 | OpenRouter requests must disallow providers that train on or store prompts (`provider.data_collection = "deny"`). |
 | NFR-4 | A banner is visible on every page: "این محیط آزمایشی است. از اطلاعات بیمار واقعی استفاده نکنید." |
 | NFR-5 | Simple deployment via Docker Compose on one server. |
 
 ## 11. Models for this PoC
 
-GPT-5.4, Claude Sonnet 5, Gemini 3.1 Pro, GPT-5 Mini, Gemini 3 Flash, DeepSeek-V4-Pro. Exact OpenRouter slugs are verified during implementation (see `backend/docs/BACKEND_ARCHITECTURE.md §9`).
+GPT-5.4, Claude Sonnet 5.5, Gemini 3.1 Pro (preview), GPT-5.4 Mini, Gemini 3 Flash (preview), DeepSeek-V4-Pro (0813), gpt-oss-120b. OpenRouter slugs: `openai/gpt-5.4`, `anthropic/claude-sonnet-5.5`, `google/gemini-3.1-pro-preview`, `openai/gpt-5.4-mini`, `google/gemini-3-flash-preview`, `deepseek/deepseek-v4-pro-0813`, `openai/gpt-oss-120b` (D-034). Token use and cost are recorded per LLM call and per session (D-035).
 
 ## 12. Milestones
 

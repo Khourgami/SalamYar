@@ -1,11 +1,13 @@
-# API Contract — v1.1 (FROZEN for parallel development)
+# API Contract — v1.2 (FROZEN for parallel development)
 
-**Status:** v1.1 frozen (2026-09-30). Any change requires a new entry in `decisions.md` and a bump to v1.x. Both the frontend and backend coders must be notified.
+**Status:** v1.2 frozen (2026-09-30). Any change requires a new entry in `decisions.md` and a bump to v1.x. Both the frontend and backend coders must be notified.
 
 ## Changelog
 
 | Version | Date | Change | Decision |
 |---|---|---|---|
+| v1.2 | 2026-09-30 | `ResultCard.stats` gains `llm_calls`, `prompt_tokens`, `completion_tokens`, `reasoning_tokens`. **Blindness:** for a non-admin caller, `total_cost_usd` and these four fields are `null` until the session is evaluated (they hint at the model and architecture). | D-035 |
+| v1.2 | 2026-09-30 | `MetricsRow` gains `total_cost_usd`, `mean_llm_calls`, `mean_prompt_tokens`, `mean_completion_tokens`, `mean_reasoning_tokens`. The `sessions` and `llm_calls` CSV exports gain token and estimated-cost columns. | D-035 |
 | v1.1 | 2026-09-30 | Submitting a second evaluation returns `409 EVALUATION_LOCKED` (resolves backend CCR #1). | D-018 |
 | v1.1 | 2026-09-30 | Error codes `METHOD_NOT_ALLOWED` (405) and `INTERNAL_ERROR` (500) added to §1 (resolves backend CCR #2). | D-019 |
 | v1.1 | 2026-09-30 | Session-scoped endpoints (§5, §6) are **owner-only for every role**, including admins. Admins read other users' sessions only through §7. `GET /sessions` returns the caller's own sessions for every role (resolves web Q-1, Q-2). | D-020 |
@@ -133,8 +135,14 @@ interface ResultCard {
   stats: {
     questions_asked: number;
     duration_seconds: number;      // session created → completed
-    total_cost_usd: number | null;
     mean_turn_latency_ms: number | null;
+    // v1.2 — the five fields below are null for a non-admin caller until the session is
+    // evaluated (they would hint at the model/architecture). Admins always get values.
+    total_cost_usd: number | null;       // sum of OpenRouter-reported cost; null if no call reported one
+    llm_calls: number | null;            // all LLM attempts of the session (turn, assessment, repair)
+    prompt_tokens: number | null;        // sums over all attempts; null if no call reported usage
+    completion_tokens: number | null;    // as reported by the provider (may include reasoning tokens)
+    reasoning_tokens: number | null;     // informational; see B-decision on whether it is part of completion_tokens
   };
 }
 
@@ -332,6 +340,11 @@ interface MetricsRow {
   turn_latency_p50_ms: number | null;
   turn_latency_p90_ms: number | null;
   mean_cost_usd: number | null;
+  total_cost_usd: number | null;        // v1.2: sum over completed sessions with a reported cost
+  mean_llm_calls: number | null;        // v1.2: per completed session
+  mean_prompt_tokens: number | null;    // v1.2: per completed session
+  mean_completion_tokens: number | null;
+  mean_reasoning_tokens: number | null;
   feedback_up: number;
   feedback_down: number;
   pairwise: { wins: number; losses: number; ties: number };
@@ -342,7 +355,7 @@ interface MetricsRow {
 200: `{ "group_by": "agent", "rows": MetricsRow[], "generated_at": string }`
 
 ### `GET /admin/export/{table}.csv`
-`table` is one of `sessions`, `messages`, `evaluations`, `feedback`, `llm_calls`, `assessments`.
+`table` is one of `sessions`, `messages`, `evaluations`, `feedback`, `llm_calls`, `assessments`. Columns are the table columns (B-022); v1.2 adds session token totals and, per LLM call, the price snapshot and `estimated_cost_usd` (D-035).
 200: `text/csv; charset=utf-8` with BOM (so it opens in Excel with Persian text). Nested JSON is flattened with dot notation or kept as a JSON string.
 
 ### `POST /admin/agents/reload`
