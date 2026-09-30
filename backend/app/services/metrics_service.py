@@ -63,6 +63,11 @@ class MetricsRow(BaseModel):
     turn_latency_p50_ms: float | None
     turn_latency_p90_ms: float | None
     mean_cost_usd: float | None
+    total_cost_usd: float | None  # v1.2 (D-035)
+    mean_llm_calls: float | None
+    mean_prompt_tokens: float | None
+    mean_completion_tokens: float | None
+    mean_reasoning_tokens: float | None
     feedback_up: int
     feedback_down: int
     pairwise: Pairwise
@@ -90,6 +95,10 @@ def _rate(numerator: int, denominator: int) -> float | None:
 
 def _mean(values: list[float] | list[int]) -> float | None:
     return fmean(values) if values else None
+
+
+def _present[T](values: list[T | None]) -> list[T]:
+    return [v for v in values if v is not None]
 
 
 @dataclass
@@ -170,7 +179,7 @@ def _row(
 
     evaluations = [f.evaluation for f in evaluated if f.evaluation is not None]
     latencies = [lat for f in group for lat in f.latencies]
-    costs = [f.sess.total_cost_usd for f in completed if f.sess.total_cost_usd is not None]
+    costs = _present([f.sess.total_cost_usd for f in completed])
     return MetricsRow(
         key=key,
         label=label,
@@ -194,6 +203,11 @@ def _row(
         turn_latency_p50_ms=percentile(latencies, 50),
         turn_latency_p90_ms=percentile(latencies, 90),
         mean_cost_usd=_mean(costs),
+        total_cost_usd=sum(costs) if costs else None,
+        mean_llm_calls=_mean([f.sess.llm_call_count for f in completed]),
+        mean_prompt_tokens=_mean(_present([f.sess.total_prompt_tokens for f in completed])),
+        mean_completion_tokens=_mean(_present([f.sess.total_completion_tokens for f in completed])),
+        mean_reasoning_tokens=_mean(_present([f.sess.total_reasoning_tokens for f in completed])),
         feedback_up=sum(f.feedback_up for f in group),
         feedback_down=sum(f.feedback_down for f in group),
         pairwise=pairwise,

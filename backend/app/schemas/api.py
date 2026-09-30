@@ -57,8 +57,13 @@ class MessageOut(ApiModel):
 class ResultStats(ApiModel):
     questions_asked: int
     duration_seconds: float
-    total_cost_usd: float | None
     mean_turn_latency_ms: float | None
+    # v1.2: null for a non-admin caller until the session is evaluated (D-035)
+    total_cost_usd: float | None
+    llm_calls: int | None
+    prompt_tokens: int | None
+    completion_tokens: int | None
+    reasoning_tokens: int | None
 
 
 class ResultCard(ApiModel):

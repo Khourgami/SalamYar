@@ -156,7 +156,17 @@ def test_simple_lifecycle(lab: Lab) -> None:
         "flags": [],
     }
     assert card["stats"]["questions_asked"] == 2
-    assert card["stats"]["total_cost_usd"] == 0.003
+    assert set(card["stats"]) == {
+        "questions_asked",
+        "duration_seconds",
+        "mean_turn_latency_ms",
+        "total_cost_usd",
+        "llm_calls",
+        "prompt_tokens",
+        "completion_tokens",
+        "reasoning_tokens",
+    }
+    assert card["stats"]["total_cost_usd"] is None  # hidden until evaluated (D-035)
     assert card["stats"]["duration_seconds"] >= 0
     assert card["stats"]["mean_turn_latency_ms"] is not None
 

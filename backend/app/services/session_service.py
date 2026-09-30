@@ -188,15 +188,25 @@ def _usage_totals(db: Session, session_id: str) -> dict[str, Any]:
     }
 
 
+def usage_visible(viewer: m.User, evaluated: bool, *, admin_view: bool = False) -> bool:
+    """D-035 blindness: cost, tokens and call count hint at the model and architecture, so a
+    non-admin caller sees them only after the evaluation. Admins always see them."""
+    return admin_view or viewer.role == "admin" or evaluated
+
+
 def _result_card(
-    db: Session, sess: m.Session, messages: list[m.Message], assessment: m.Assessment
+    db: Session,
+    sess: m.Session,
+    messages: list[m.Message],
+    assessment: m.Assessment,
+    *,
+    show_usage: bool,
 ) -> ResultCard:
     latencies = [
         msg.latency_ms
         for msg in messages
         if msg.role == "agent" and msg.kind in TURN_KINDS and msg.latency_ms is not None
     ]
-    total_cost, _ = _llm_totals(db, sess.id)
     duration = (sess.completed_at - sess.created_at).total_seconds() if sess.completed_at else 0.0
     return ResultCard(
         assessment=AssessmentResult.model_validate(loads(assessment.result_json)),
@@ -204,8 +214,12 @@ def _result_card(
         stats=ResultStats(
             questions_asked=sess.questions_asked,
             duration_seconds=round(duration, 3),
-            total_cost_usd=total_cost,
             mean_turn_latency_ms=round(fmean(latencies), 1) if latencies else None,
+            total_cost_usd=_llm_totals(db, sess.id)[0] if show_usage else None,
+            llm_calls=sess.llm_call_count if show_usage else None,
+            prompt_tokens=sess.total_prompt_tokens if show_usage else None,
+            completion_tokens=sess.total_completion_tokens if show_usage else None,
+            reasoning_tokens=sess.total_reasoning_tokens if show_usage else None,
         ),
     )
 
@@ -241,10 +255,15 @@ def build_detail(
     assessment = _assessment(db, sess.id) if completed else None
     evaluation = _evaluation(db, sess.id)
     show_reveal = admin_view or evaluation is not None or viewer.role == "admin"
+    show_usage = usage_visible(viewer, evaluation is not None, admin_view=admin_view)
     return SessionDetail(
         **summary.model_dump(),
         messages=[message_out(msg) for msg in messages],
-        result=_result_card(db, sess, messages, assessment) if assessment else None,
+        result=(
+            _result_card(db, sess, messages, assessment, show_usage=show_usage)
+            if assessment
+            else None
+        ),
         backstage=_backstage(db, sess.id) if completed else None,
         feedback=_feedback(db, sess.id, None if admin_view else viewer.id),
         evaluation=evaluation_out(evaluation) if evaluation else None,

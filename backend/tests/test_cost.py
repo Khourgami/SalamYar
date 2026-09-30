@@ -1,5 +1,7 @@
 """Token and cost accounting (D-035, contract v1.2): prices, per-call estimates, session totals."""
 
+import csv
+import io
 import sqlite3
 from pathlib import Path
 
@@ -11,7 +13,8 @@ from app.db import models as m
 from app.db.engine import SchemaError
 from app.db.types import dumps, loads
 from app.llm.client import LLMError, LLMResponse
-from tests.lab import ASK, ASSESSMENT, B_CONCLUDE, TEST_AGENTS, Lab
+from tests import fixtures as fx
+from tests.lab import ASK, ASSESSMENT, B_ASK, B_CONCLUDE, CONCLUDE, TEST_AGENTS, Lab
 
 
 def _snapshot(sid: str) -> dict:
@@ -211,3 +214,148 @@ def test_schema_check_passes_on_current_database(tmp_path: Path) -> None:
     app_db.configure(str(path))
     app_db.init_db()
     app_db.init_db()  # idempotent on a current file
+
+
+# --- T3: contract v1.2 fields and blindness ------------------------------------------------
+
+USAGE_KEYS = ("total_cost_usd", "llm_calls", "prompt_tokens", "completion_tokens")
+HIDDEN = dict.fromkeys((*USAGE_KEYS, "reasoning_tokens"))
+
+
+def _usage_stats(card: dict) -> dict:
+    return {k: card["stats"][k] for k in HIDDEN}
+
+
+def _b_session(lab: Lab, who: str = "ev1") -> tuple[str, dict]:
+    """Structured session completed by the turn call: 3 calls with known usage."""
+    sid = lab.create("b-struct", who)["id"]
+    lab.llm.push(
+        _usage(B_ASK, 1000, 300, 100, 0.01),
+        _usage(B_CONCLUDE, 1200, 200, 50, 0.02),
+        _usage(ASSESSMENT, 900, 700, None, 0.03),
+    )
+    assert lab.send(sid, "سردرد دارم", who).status_code == 200
+    r = lab.send(sid, "از دیروز", who)
+    assert r.status_code == 200
+    return sid, r.json()
+
+
+B_VALUES = {
+    "total_cost_usd": pytest.approx(0.06),
+    "llm_calls": 3,
+    "prompt_tokens": 3100,
+    "completion_tokens": 1200,
+    "reasoning_tokens": 150,
+}
+
+
+def test_evaluator_sees_null_usage_until_evaluated(lab: Lab) -> None:
+    lab.user("boss", "admin")
+    sid, turn = _b_session(lab)
+    assert turn["session"]["status"] == "completed"
+    assert _usage_stats(turn["session"]["result"]) == HIDDEN  # TurnResponse that completes it
+    assert _usage_stats(lab.req("GET", f"/sessions/{sid}").json()["result"]) == HIDDEN
+    # admin view: values at any time
+    assert _usage_stats(lab.req("GET", f"/admin/sessions/{sid}", "boss").json()["result"]) == (
+        B_VALUES
+    )
+
+    assert lab.req("POST", f"/sessions/{sid}/evaluation", json=fx.evaluation()).status_code == 201
+    assert _usage_stats(lab.req("GET", f"/sessions/{sid}").json()["result"]) == B_VALUES
+
+
+def test_finish_response_hides_usage_for_evaluator(lab: Lab) -> None:
+    sid = lab.create("a-simple")["id"]
+    lab.llm.push(ASK)
+    assert lab.send(sid, "سردرد دارم").status_code == 200
+    lab.llm.push(CONCLUDE)
+    r = lab.finish(sid)
+    assert r.status_code == 200
+    assert _usage_stats(r.json()["session"]["result"]) == HIDDEN
+    assert lab.req("POST", f"/sessions/{sid}/evaluation", json=fx.evaluation()).status_code == 201
+    stats = lab.req("GET", f"/sessions/{sid}").json()["result"]["stats"]
+    assert stats["llm_calls"] == 2 and stats["prompt_tokens"] == 200
+    assert stats["completion_tokens"] == 100 and stats["reasoning_tokens"] is None
+    assert stats["total_cost_usd"] == pytest.approx(0.002)
+
+
+def test_admin_owner_sees_usage_before_evaluation(lab: Lab) -> None:
+    lab.user("boss", "admin")
+    sid, turn = _b_session(lab, "boss")
+    assert _usage_stats(turn["session"]["result"]) == B_VALUES
+    assert _usage_stats(lab.req("GET", f"/sessions/{sid}", "boss").json()["result"]) == B_VALUES
+    lab.llm.push(ASK)
+    other = lab.create("a-simple", "boss")["id"]
+    assert lab.send(other, "سردرد", "boss").status_code == 200
+    lab.llm.push(CONCLUDE)
+    assert lab.finish(other, "boss").json()["session"]["result"]["stats"]["llm_calls"] == 2
+
+
+def test_metrics_usage_fields_per_group_by(lab: Lab) -> None:
+    lab.user("boss", "admin")
+    _b_session(lab)  # structured, test/struct-model: 3 calls, 3100/1200/150, 0.06
+    sid = lab.create("a-simple")["id"]  # simple, test/simple-model: 2 calls, 300/60/None, 0.004
+    lab.llm.push(_usage(ASK, 100, 20, None, 0.001), _usage(CONCLUDE, 200, 40, None, 0.003))
+    lab.send(sid, "سردرد دارم")
+    assert lab.send(sid, "از دیروز").json()["session"]["status"] == "completed"
+    sid = lab.create("a-capped")["id"]  # simple, test/capped: 1 call without usage or cost
+    lab.llm.push(_usage(CONCLUDE, None, None))
+    assert lab.send(sid, "سردرد دارم").json()["session"]["status"] == "completed"
+    lab.llm.push(ASK)  # active session: excluded from every v1.2 metric
+    assert lab.send(lab.create("a-simple")["id"], "سردرد").status_code == 200
+
+    def rows(group_by: str) -> dict[str, dict]:
+        body = lab.req("GET", f"/admin/metrics?group_by={group_by}", "boss").json()
+        return {r["key"]: r for r in body["rows"]}
+
+    def usage(row: dict) -> tuple:
+        return (
+            row["total_cost_usd"],
+            row["mean_llm_calls"],
+            row["mean_prompt_tokens"],
+            row["mean_completion_tokens"],
+            row["mean_reasoning_tokens"],
+        )
+
+    by_agent = rows("agent")
+    assert usage(by_agent["b-struct"]) == (pytest.approx(0.06), 3, 3100, 1200, 150)
+    assert usage(by_agent["a-simple"]) == (pytest.approx(0.004), 2, 300, 60, None)
+    assert usage(by_agent["a-capped"]) == (None, 1, None, None, None)
+    assert usage(by_agent["b-capped"]) == (None, None, None, None, None)  # no sessions
+
+    by_arch = rows("architecture")
+    assert usage(by_arch["simple"]) == (pytest.approx(0.004), 1.5, 300, 60, None)
+    assert usage(by_arch["structured"]) == (pytest.approx(0.06), 3, 3100, 1200, 150)
+    assert by_arch["simple"]["mean_cost_usd"] == pytest.approx(0.004)
+
+    by_model = rows("model")
+    assert usage(by_model["test/simple-model"]) == (pytest.approx(0.004), 2, 300, 60, None)
+    assert usage(by_model["test/capped"]) == (None, 1, None, None, None)
+    assert usage(by_model["test/struct-model"])[1:] == (3, 3100, 1200, 150)
+
+
+@pytest.mark.parametrize(
+    "table,columns",
+    [
+        (
+            "sessions",
+            {
+                "llm_call_count",
+                "total_prompt_tokens",
+                "total_completion_tokens",
+                "total_reasoning_tokens",
+                "total_estimated_cost_usd",
+            },
+        ),
+        ("llm_calls", {"price_input_per_mtok", "price_output_per_mtok", "estimated_cost_usd"}),
+    ],
+)
+def test_csv_export_has_v12_columns(lab: Lab, table: str, columns: set[str]) -> None:
+    lab.user("boss", "admin")
+    lab.completed_session()
+    r = lab.req("GET", f"/admin/export/{table}.csv", "boss")
+    rows = list(csv.reader(io.StringIO(r.content.decode("utf-8-sig"))))
+    header = rows[0]
+    assert columns <= set(header)
+    for col in columns - {"total_reasoning_tokens"}:  # FakeLLM reports no reasoning → empty
+        assert all(row[header.index(col)] != "" for row in rows[1:]), col
