@@ -11,7 +11,7 @@ Updated by the backend coder at the end of every task.
 |---|---|---|
 | T1 | Final model set in `agents.yaml` (D-034, D-036), slugs verified | ✅ Done (B-037) |
 | T2 | Turn deadline 80 s / call deadline 50 s (D-038) | ✅ Done (B-038) |
-| T3 | Smoke test of the final set ×2, D-025 fixes | ⏳ |
+| T3 | Smoke test of the final set ×2, D-025 fixes | ✅ Done — no config change (B-039) |
 | T4 | D-036 gate, D-037 targets, compose + nginx | ⏳ |
 | T5 | Report `reports/phase-2b2-model-set.md` | ⏳ |
 
@@ -114,3 +114,5 @@ Per task: `uv run pytest -q` + `uv run ruff check .`, update this file, commit (
 - 2026-09-30 — Phase 2b T6 — report `reports/phase-2b-real-model-verification.md`, README smoke-test section (`--json`, columns), progress, decisions; total spend USD 0.87 — 306 tests pass, guard 100%, ruff clean
 - 2026-09-30 — Phase 2b-2 T1 — `/models` has all 7 D-034 slugs exactly; `agents.yaml`: sonnet5→sonnet55, gpt5mini→gpt54mini (in place), DeepSeek → `deepseek-v4-pro-0813` + `minimal`/8000 (D-036), new `b-gptoss120b` (enabled) / `a-gptoss120b`; 14 agents, 9 enabled; registry tests for the table, D-036 config and retired-id sync; README ids (B-037) — 307 tests pass
 - 2026-09-30 — Phase 2b-2 T2 — `TurnBudget`/`DeadlineExceeded` (`app/llm/budget.py`); per-turn budget from the session service via `SessionContext.budget`; `json_runner` wraps each call in `asyncio.timeout(min(50, remaining))`, gates the repair on ≥ 15 s; OpenRouter skips its transport retry on < 15 s; B skips the assessment call on < 15 s (state kept); deadline attempts traced `deadline_exceeded` + latency; settings `LLM_CALL_DEADLINE_SECONDS`/`TURN_DEADLINE_SECONDS`, `.env.example`, README; smoke `reason` column (B-038). 15 new tests — 322 tests pass, guard 100%, ruff clean
+- 2026-09-30 — Phase 2b-2 T3 — real smoke run 1: 12/14 pass (USD 0.43); run 2: 11/14 (USD 0.40); no provider 4xx → no D-025 change, no greeting fallback (B-039). Failures: `b-gptoss120b` conclude `deadline` ×2; `a-gemini3flash` ×2 and `a-deepseekv4pro` (run 2) ask after forced conclude. `/key` usage 1.6968 (phase spend 0.83) — no tests
+- 2026-09-30 — Phase 2b-2 T4 gate — D-036 gate: `b-gptoss120b` disabled (conclusion deadline in both runs); 8 enabled agents; D-037 misses: `b-deepseekv4pro` p50/p90, `a-gpt54` p90 (B-040); analysis in `data/t4-2b2-analysis.txt` — 322 tests pass

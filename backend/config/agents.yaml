@@ -96,7 +96,7 @@ agents:
     description: null
     architecture: structured
     model: openai/gpt-oss-120b  # D-034
-    enabled: true
+    enabled: false  # D-036 gate: conclusion failed in both phase 2b-2 runs (assessment call cut by the 50 s call deadline, B-040)
   - id: a-gptoss120b  # D-034: new agent
     display_name: "دکتر ۱۴"
     description: null

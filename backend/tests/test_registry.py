@@ -53,7 +53,7 @@ REPO_TABLE = [  # BACKEND_ARCHITECTURE §8 (D-022, D-034)
     ("a-deepseekv4pro", "دکتر ۱۰", "simple", "deepseek/deepseek-v4-pro-0813", False),
     ("a-gpt54mini", "دکتر ۱۱", "simple", "openai/gpt-5.4-mini", False),
     ("a-gemini31pro", "دکتر ۱۲", "simple", "google/gemini-3.1-pro-preview", False),
-    ("b-gptoss120b", "دکتر ۱۳", "structured", "openai/gpt-oss-120b", True),
+    ("b-gptoss120b", "دکتر ۱۳", "structured", "openai/gpt-oss-120b", False),  # D-036 gate
     ("a-gptoss120b", "دکتر ۱۴", "simple", "openai/gpt-oss-120b", False),
 ]
 DEEPSEEK_IDS = {"b-deepseekv4pro", "a-deepseekv4pro"}
@@ -65,7 +65,7 @@ def test_repo_config_is_valid_and_matches_table() -> None:
     got = [(a.id, a.display_name, a.architecture, a.model, a.enabled) for a in agents.values()]
     assert got == REPO_TABLE
     assert len(agents) == 14
-    assert sum(a.enabled for a in agents.values()) == 9
+    assert sum(a.enabled for a in agents.values()) == 8  # 9 per D-034, minus the D-036 gate
     assert len({a.display_name for a in agents.values()}) == 14
     for a in agents.values():
         assert a.description is None
