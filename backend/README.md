@@ -72,6 +72,7 @@ uv run python -m app.cli create-user --username dr.x --display-name "دکتر ..
 uv run python -m app.cli create-user --username qa --display-name "QA" --role evaluator --password-stdin
 uv run python -m app.cli list-agents
 uv run python -m app.cli smoke-test [--agent ID] [--include-disabled] [--json PATH]    # real OpenRouter calls, ~USD 0.40 for all 14 agents
+uv run python -m app.cli cost-report --by model --csv data/cost-by-model.csv           # DB only, no key needed
 ```
 
 `--password-stdin` reads the password from the first line of stdin instead of prompting. The rules
@@ -106,12 +107,39 @@ runs (phase 2b, `docs/reports/phase-2b-real-model-verification.md`, and phase 2b
 model set, `docs/reports/phase-2b2-model-set.md`) needed no such change. Agents that fail the
 conclusion or take > 75 s in a turn are disabled for M3 by the D-036 gate (`# D-036 gate` comment).
 
+### Cost report (D-035)
+
+```bash
+uv run python -m app.cli cost-report [--by session|agent|model|architecture] [--status completed|all] [--csv PATH] [--db PATH]
+```
+
+Reads the database only (no OpenRouter key needed; `--db`, else `DATABASE_PATH` from the
+environment or `.env`). Defaults: `--by agent --status completed`. Grouped rows show sessions,
+LLM calls (every attempt, failed and repair included), repair calls, prompt / completion /
+reasoning tokens (sum and mean per session), the **reported** cost (OpenRouter `usage.cost`, the
+source of truth: sum, mean, median, max per session), the **estimated** cost (tokens × the price
+snapshot of the session: sum, mean), and `diff_pct` = (estimated − reported) / reported over the
+calls that carry both values; `>15%` marks rows where |diff| > 15 % (usually prompt caching,
+DeepSeek off-peak prices or gpt-oss provider routing — B-043). `--by session` lists one row per
+session (agent, model, architecture, status, end reason, questions, final level, calls, tokens,
+reported and estimated cost). `--csv` writes the same cells as UTF-8 with BOM. An empty database
+prints `no sessions …` and exits 0.
+
 ## Agents
 
 Agents are declared in `config/agents.yaml` (`defaults` + one entry per agent; any default can be
 overridden per agent, including nested `options`; `send_temperature: false` omits temperature).
 Reload without restarting via `POST /api/v1/admin/agents/reload` (an invalid file keeps the previous
 config). Running sessions always use the config snapshot taken when they started.
+
+Every model used by any agent needs an entry in the top-level `pricing` map (USD per 1M tokens,
+`input_per_mtok`, `output_per_mtok`, `source`, `as_of`), copied from OpenRouter `GET /models`. The
+price is part of the session snapshot, so a price change affects only new sessions' estimates.
+
+**Database schema v1.2.** There are no migrations. A database file created before v1.2 is refused
+at start-up with "database schema is older than v1.2 — delete data/*.db or use a new
+DATABASE_PATH". Delete the old `data/lab.db*` / `data/dev.db*` files (or point `DATABASE_PATH` /
+`--db` at a new file).
 
 ## Test and lint
 

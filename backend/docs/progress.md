@@ -10,7 +10,7 @@ Updated by the backend coder at the end of every task.
 | T1 | Pricing in the registry, snapshot, `list-agents` | ✅ Done (B-042) |
 | T2 | Per-call estimate, session totals, schema check | ✅ Done (B-043, B-044) |
 | T3 | API fields and blindness (contract v1.2), metrics, CSV | ✅ Done (B-045) |
-| T4 | `cost-report` CLI | ⏳ |
+| T4 | `cost-report` CLI | ✅ Done (B-046) |
 | T5 | Dev server + DemoLLM verification | ⏳ |
 | T6 | Report | ⏳ |
 
@@ -138,3 +138,4 @@ Per task: `uv run pytest -q` + `uv run ruff check .`, update this file, commit (
 - 2026-09-30 — Phase 2c T1 — `pricing` map in `agents.yaml` (7 models from public `/models`, exact ×1e6), `ModelPricing` validation (≥ 0, no unknown keys, every referenced model priced), price copied into `AgentConfig.pricing` → session snapshot; `list-agents` price columns; extra `/models` price fields recorded, not modeled (B-042). 11 new tests — 333 tests pass
 - 2026-09-30 — Phase 2c T2 — reasoning-token finding from the 2b/2b-2 traces: `completion_tokens` includes reasoning for every model where it is observable (B-043); `llm_calls` price snapshot + `estimated_cost_usd`, `sessions` call count and token/estimate totals refreshed after every attempt; `init_db` schema check fails fast on pre-v1.2 files (B-044). 7 new tests — 340 tests pass
 - 2026-09-30 — Phase 2c T3 — `ResultStats` v1.2 fields, blindness via `usage_visible` in the single `ResultCard` builder, `MetricsRow` `total_cost_usd` + 4 means, CSV columns verified; `test_sessions` stats key set updated (evaluator now sees `total_cost_usd: null` before evaluation) (B-045). 6 new tests — 346 tests pass
+- 2026-09-30 — Phase 2c T4 — `cost-report --by session|agent|model|architecture --status completed|all --csv --db` (DB only, no key; `>15%` flag; CSV = table cells, BOM); README section, pricing and schema-v1.2 notes; dev server prints the schema error cleanly (B-046). 10 new tests — 356 tests pass

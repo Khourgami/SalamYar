@@ -1,4 +1,4 @@
-"""Command-line tools: create-user, list-agents, smoke-test.
+"""Command-line tools: create-user, list-agents, smoke-test, cost-report.
 
 Usage: uv run python -m app.cli <command> [options]
 """
@@ -152,6 +152,57 @@ def cmd_smoke_test(args: argparse.Namespace) -> int:
     return asyncio.run(run_smoke(configs, get_llm(), available, args.json))
 
 
+def _database_path(explicit: str | None) -> str:
+    """`--db`, else DATABASE_PATH from the environment or `.env` (no API key needed)."""
+    if explicit:
+        return explicit
+    from pydantic_settings import BaseSettings, SettingsConfigDict
+
+    class _DbSettings(BaseSettings):
+        model_config = SettingsConfigDict(
+            env_file=".env", env_file_encoding="utf-8", extra="ignore"
+        )
+        database_path: str = "data/lab.db"
+
+    return _DbSettings().database_path
+
+
+def cmd_cost_report(args: argparse.Namespace) -> int:
+    from pathlib import Path
+
+    from app import db as app_db
+    from app.db.engine import SchemaError, check_schema
+    from app.services.cost_report import build_report, format_table, to_csv
+
+    path = _database_path(args.db)
+    if not Path(path).is_file():
+        print(f"error: database not found: {path}", file=sys.stderr)
+        return 2
+    try:
+        check_schema(app_db.configure(path))
+    except SchemaError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    with app_db.session_factory()() as db:
+        report = build_report(db, args.by, args.status)
+    scope = "completed sessions" if args.status == "completed" else "all sessions"
+    if report is None:
+        print(f"no sessions ({scope}) in {path}")
+        return 0
+    print(f"Cost report by {args.by} — {scope} — {path}")
+    print(format_table(report))
+    if args.by != "session":
+        print(
+            "\nreported = OpenRouter usage.cost (source of truth); estimated = tokens × snapshot "
+            "prices;\ndiff_pct = (estimated − reported) / reported over calls with both values; "
+            ">15% marks |diff| > 15%."
+        )
+    if args.csv:
+        Path(args.csv).write_bytes(to_csv(report))
+        print(f"\nwrote {args.csv}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="app.cli", description="Triage Agent Lab backend tools")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -177,6 +228,13 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--config", help="agents.yaml path (default: AGENTS_CONFIG_PATH)")
     p.add_argument("--json", metavar="PATH", help="also write the per-agent results as JSON")
     p.set_defaults(func=cmd_smoke_test)
+
+    p = sub.add_parser("cost-report", help="tokens and cost per session/agent/model/architecture")
+    p.add_argument("--by", choices=["session", "agent", "model", "architecture"], default="agent")
+    p.add_argument("--status", choices=["completed", "all"], default="completed")
+    p.add_argument("--csv", metavar="PATH", help="also write the table as CSV (UTF-8 with BOM)")
+    p.add_argument("--db", metavar="PATH", help="SQLite file (default: DATABASE_PATH)")
+    p.set_defaults(func=cmd_cost_report)
     return parser
 
 

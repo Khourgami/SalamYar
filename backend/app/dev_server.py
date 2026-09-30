@@ -145,8 +145,13 @@ def main(argv: Sequence[str] | None = None) -> None:
         reconfigure = getattr(stream, "reconfigure", None)
         if reconfigure is not None:
             reconfigure(encoding="utf-8")
+    from app.db.engine import SchemaError
+
     args = build_parser().parse_args(argv)
-    asgi, seeded = build_app(args)
+    try:
+        asgi, seeded = build_app(args)
+    except SchemaError as exc:
+        raise SystemExit(f"error: {exc}") from None
     print(f"Dev server (DemoLLM, no OpenRouter): http://{args.host}:{args.port}/api/v1")
     print(f"Database: {Path(args.db).resolve()}")
     print(f"Simulated LLM delay: {max(0, args.delay_ms)} ms per call")
