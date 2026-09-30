@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from app.agents.clinical_schemas import AssessmentResult, ClinicalState, GuardReport, Hypothesis
 from app.agents.config import AgentConfig
 from app.agents.json_runner import TraceFn
+from app.llm.budget import TurnBudget
 from app.llm.client import LLMMessage, LLMRequest
 
 EndReason = Literal["agent_concluded", "max_questions", "evaluator_ended"]
@@ -37,6 +38,8 @@ class SessionContext:
     clinical_state: ClinicalState | None = None  # architecture B only
     previous_hypotheses: list[Hypothesis] = field(default_factory=list)  # architecture B only
     save_clinical_state: Callable[[ClinicalState], None] = lambda _state: None
+    # D-038: one budget per next_turn/force_conclude; the session service sets a fresh one
+    budget: TurnBudget = field(default_factory=TurnBudget)
 
 
 class TurnOutcome(BaseModel):

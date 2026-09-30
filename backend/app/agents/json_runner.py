@@ -1,7 +1,12 @@
-"""Call the LLM → strip fences → validate → one repair retry → trace (BACKEND_ARCHITECTURE §6.3)."""
+"""Call the LLM → strip fences → validate → one repair retry → trace (BACKEND_ARCHITECTURE §6.3).
 
+Every call runs under the turn budget's total deadline and a repair needs ≥ 15 s left (D-038).
+"""
+
+import asyncio
 import json
 import re
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Literal
@@ -9,6 +14,7 @@ from typing import Literal
 from pydantic import BaseModel, ValidationError
 
 from app.agents.prompts.loader import render
+from app.llm.budget import DEADLINE_ERROR, DeadlineExceeded, TurnBudget
 from app.llm.client import LLMClient, LLMError, LLMMessage, LLMRequest, LLMResponse
 
 Purpose = Literal["turn", "assessment", "repair"]
@@ -29,6 +35,7 @@ class TraceRecord:
     response: LLMResponse | None
     parsed_ok: bool
     error: str | None
+    latency_ms: int | None = None  # wall time of an attempt without a response (error/deadline)
 
 
 TraceFn = Callable[[TraceRecord], None]
@@ -60,12 +67,36 @@ def _error_text(exc: Exception) -> str:
 
 
 async def _call(
-    llm: LLMClient, req: LLMRequest, purpose: Purpose, attempt: int, trace: TraceFn
+    llm: LLMClient,
+    req: LLMRequest,
+    purpose: Purpose,
+    attempt: int,
+    trace: TraceFn,
+    budget: TurnBudget,
 ) -> LLMResponse:
+    """One logical call (the client's transport retry included) under a total deadline of
+    `min(call deadline, remaining turn budget)`, covering the whole request and body."""
+    timeout = budget.call_timeout()
+    started = time.perf_counter()
+
+    def elapsed_ms() -> int:
+        return int((time.perf_counter() - started) * 1000)
+
     try:
-        return await llm.complete(req)
+        if timeout <= 0:
+            raise TimeoutError
+        async with asyncio.timeout(timeout):
+            return await llm.complete(req, budget)
+    except TimeoutError:
+        latency = elapsed_ms()
+        trace(TraceRecord(purpose, attempt, req, None, False, DEADLINE_ERROR, latency))
+        raise DeadlineExceeded(
+            f"{DEADLINE_ERROR}: {purpose} attempt {attempt} cut after {latency} ms "
+            f"(call deadline {timeout:.1f} s)"
+        ) from None
     except LLMError as exc:
-        trace(TraceRecord(purpose, attempt, req, None, False, str(exc)[:MAX_ERROR_CHARS]))
+        error = str(exc)[:MAX_ERROR_CHARS]
+        trace(TraceRecord(purpose, attempt, req, None, False, error, elapsed_ms()))
         raise
 
 
@@ -77,10 +108,13 @@ async def run_json[M: BaseModel](
     purpose: Literal["turn", "assessment"],
     trace: TraceFn,
     prompt_version: str = "v1",
+    budget: TurnBudget | None = None,
 ) -> tuple[M, list[LLMResponse]]:
     """Return the validated model and every LLM response used. Raises `AgentOutputError` after
-    a failed repair, or `LLMError` when the transport fails (each attempt is traced first)."""
-    first = await _call(llm, req, purpose, 1, trace)
+    a failed repair, or `LLMError` when the transport fails (each attempt is traced first);
+    `DeadlineExceeded` (an `LLMError`) when the turn budget runs out or is too short to repair."""
+    budget = budget if budget is not None else TurnBudget()
+    first = await _call(llm, req, purpose, 1, trace, budget)
     try:
         parsed = _parse(first.text, model_cls)
     except (ValidationError, ValueError) as exc:
@@ -90,6 +124,7 @@ async def run_json[M: BaseModel](
         trace(TraceRecord(purpose, 1, req, first, True, None))
         return parsed, [first]
 
+    budget.require_follow_up("repair")
     repair_req = req.model_copy(
         update={
             "messages": [
@@ -102,7 +137,7 @@ async def run_json[M: BaseModel](
             ]
         }
     )
-    second = await _call(llm, repair_req, "repair", 2, trace)
+    second = await _call(llm, repair_req, "repair", 2, trace, budget)
     try:
         parsed = _parse(second.text, model_cls)
     except (ValidationError, ValueError) as exc:

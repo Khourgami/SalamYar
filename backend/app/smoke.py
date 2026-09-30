@@ -19,6 +19,7 @@ from app.agents.clinical_schemas import Hypothesis
 from app.agents.config import AgentConfig
 from app.agents.json_runner import AgentOutputError, TraceRecord
 from app.agents.texts_fa import GREETING_FA
+from app.llm.budget import DeadlineExceeded, TurnBudget
 from app.llm.client import LLMClient, LLMError
 
 PATIENT_MESSAGES = (
@@ -50,6 +51,7 @@ class SmokeResult:
     replies: dict[str, str] = field(default_factory=dict)  # Persian text shown per step
     triage_level: str | None = None  # final (post-guard) level
     config: AgentConfig | None = field(default=None, repr=False)
+    failure: str = ""  # "" | "deadline" | "invalid_output" | "transport" | "model_missing"
 
     @property
     def ok(self) -> bool:
@@ -81,9 +83,22 @@ async def fetch_model_ids(
     return {m["id"] for m in resp.json().get("data", [])}
 
 
+def failure_reason(exc: Exception) -> str:
+    if isinstance(exc, DeadlineExceeded):
+        return "deadline"
+    if isinstance(exc, AgentOutputError):
+        return "invalid_output"
+    return "transport"
+
+
 async def run_agent(
-    config: AgentConfig, llm: LLMClient, *, clock: Callable[[], float] = time.perf_counter
+    config: AgentConfig,
+    llm: LLMClient,
+    *,
+    clock: Callable[[], float] = time.perf_counter,
+    new_budget: Callable[[], TurnBudget] = TurnBudget,
 ) -> SmokeResult:
+    """Each scripted step is one turn with a fresh budget, as in the session service (D-038)."""
     res = SmokeResult(agent_id=config.id, model=config.model, config=config)
     step = "turn1"
 
@@ -113,6 +128,7 @@ async def run_agent(
         for step, text in zip(("turn1", "turn2"), PATIENT_MESSAGES, strict=True):
             ctx.transcript.append(TranscriptEntry(role="patient", text=text))
             step_started = clock()
+            ctx.budget = new_budget()
             outcome = await arch.next_turn(ctx)
             finish_step(outcome)
             setattr(res, step, "y")
@@ -128,12 +144,14 @@ async def run_agent(
         step = "conclude"
         if outcome is None or outcome.kind != "result":
             step_started = clock()
+            ctx.budget = new_budget()
             finish_step(await arch.force_conclude(ctx, "evaluator_ended"))
         res.conclude = "y"
     except (AgentOutputError, LLMError) as exc:
         res.turn_latencies_ms[step] = int((clock() - step_started) * 1000)
         setattr(res, step, "n")
         res.error = f"{type(exc).__name__}: {exc}"
+        res.failure = failure_reason(exc)
     res.latency_ms = int((clock() - started) * 1000)
     res.repairs = sum(1 for t in res.traces if t.purpose == "repair")
     costs = [
@@ -144,7 +162,10 @@ async def run_agent(
 
 
 async def smoke_test(
-    configs: Sequence[AgentConfig], llm: LLMClient, available: set[str] | None
+    configs: Sequence[AgentConfig],
+    llm: LLMClient,
+    available: set[str] | None,
+    new_budget: Callable[[], TurnBudget] = TurnBudget,
 ) -> list[SmokeResult]:
     results = []
     for cfg in configs:
@@ -155,11 +176,12 @@ async def smoke_test(
                     model=cfg.model,
                     model_found=False,
                     error="model not found",
+                    failure="model_missing",
                     config=cfg,
                 )
             )
             continue
-        res = await run_agent(cfg, llm)
+        res = await run_agent(cfg, llm, new_budget=new_budget)
         res.model_found = None if available is None else True
         results.append(res)
     return results
@@ -190,6 +212,7 @@ def format_table(results: Sequence[SmokeResult]) -> str:
         "repairs",
         "total_s",
         "cost_usd",
+        "reason",
         "error",
     ]
     rows = [
@@ -207,6 +230,7 @@ def format_table(results: Sequence[SmokeResult]) -> str:
             str(r.repairs),
             f"{r.latency_ms / 1000:.1f}",
             "-" if r.cost_usd is None else f"{r.cost_usd:.5f}",
+            r.failure or "-",
             (r.error[: ERROR_WIDTH - 1] + "…") if len(r.error) > ERROR_WIDTH else r.error,
         ]
         for r in results
@@ -237,7 +261,7 @@ def result_to_dict(r: SmokeResult) -> dict[str, Any]:
                 "purpose": t.purpose,
                 "attempt": t.attempt,
                 "parsed_ok": t.parsed_ok,
-                "latency_ms": resp.latency_ms if resp else None,
+                "latency_ms": resp.latency_ms if resp else t.latency_ms,
                 "cost_usd": resp.cost_usd if resp else None,
                 "prompt_tokens": resp.prompt_tokens if resp else None,
                 "completion_tokens": resp.completion_tokens if resp else None,
@@ -271,6 +295,7 @@ def result_to_dict(r: SmokeResult) -> dict[str, Any]:
         "repair_calls": r.repairs,
         "cost_usd": r.cost_usd,
         "error": _clip(r.error) or None,
+        "failure_reason": r.failure or None,
         "call_errors": [c["error"] for c in calls if c["error"]],
         "calls": calls,
         "replies": dict(r.replies),

@@ -1,8 +1,11 @@
 """LLM-agnostic client interface (BACKEND_ARCHITECTURE §5)."""
 
-from typing import Any, Literal, Protocol
+from typing import TYPE_CHECKING, Any, Literal, Protocol
 
 from pydantic import BaseModel
+
+if TYPE_CHECKING:
+    from app.llm.budget import TurnBudget
 
 OutputMode = Literal["json_schema", "json_object", "prompt_only"]
 ReasoningEffort = Literal["minimal", "low", "medium", "high"]
@@ -39,4 +42,7 @@ class LLMError(Exception):
 
 
 class LLMClient(Protocol):
-    async def complete(self, req: LLMRequest) -> LLMResponse: ...
+    async def complete(self, req: LLMRequest, budget: "TurnBudget | None" = None) -> LLMResponse:
+        """`budget` (D-038) lets the client skip a transport retry when the turn is nearly over.
+        The total per-call deadline itself is enforced by the caller (`json_runner`)."""
+        ...

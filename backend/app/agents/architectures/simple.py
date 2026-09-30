@@ -36,6 +36,7 @@ class SimpleArchitecture:
             purpose="assessment" if force else "turn",
             trace=ctx.trace,
             prompt_version=ctx.config.prompt_version,
+            budget=ctx.budget,
         )
         return turn
 

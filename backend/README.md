@@ -14,6 +14,16 @@ cp .env.example .env         # then set OPENROUTER_API_KEY and JWT_SECRET
 
 All settings are listed in `.env.example` (BACKEND_ARCHITECTURE §13).
 
+**Deadlines (D-038).** `TURN_DEADLINE_SECONDS` (default 80) bounds a whole turn (every LLM call of
+one patient message or "finish", including the transport retry and the repair).
+`LLM_CALL_DEADLINE_SECONDS` (default 50) bounds each single call as a total deadline, including
+reading the body; the effective limit is `min(call deadline, remaining turn budget)`.
+`LLM_TIMEOUT_SECONDS` (default 60) stays the httpx per-read timeout. A retry, a repair, or
+architecture B's assessment call after a turn call starts only if at least 15 s of the turn remain.
+When the budget runs out the turn ends as 502 `AGENT_ERROR` (resendable), the session lock is
+released, and the attempt is traced in `llm_calls` with `error = "deadline_exceeded"` and its
+latency. The backend therefore always answers before the web client's 90 s timeout.
+
 ## Run
 
 ```bash
@@ -61,7 +71,7 @@ transcript.
 uv run python -m app.cli create-user --username dr.x --display-name "دکتر ..." --role evaluator   # prompts for password (≥ 8 chars)
 uv run python -m app.cli create-user --username qa --display-name "QA" --role evaluator --password-stdin
 uv run python -m app.cli list-agents
-uv run python -m app.cli smoke-test [--agent ID] [--include-disabled] [--json PATH]    # real OpenRouter calls, ~USD 0.40 for all 12 agents
+uv run python -m app.cli smoke-test [--agent ID] [--include-disabled] [--json PATH]    # real OpenRouter calls, ~USD 0.40 for all 14 agents
 ```
 
 `--password-stdin` reads the password from the first line of stdin instead of prompting. The rules
@@ -75,9 +85,11 @@ are the same: at least 8 characters, no duplicate username. PowerShell:
 two-message conversation plus a forced conclusion through the real architectures, prints a table,
 and exits non-zero if any agent fails. Per agent the table shows each scripted turn's wall-clock
 latency (`t1_s`, `t2_s`, `concl_s`), the mean and max turn latency, the number of LLM calls and
-repairs, the total time, and the cost. `--json PATH` also writes one object per agent (config, per-step
+repairs, the total time, the cost, and the failure reason (`deadline`, `invalid_output`,
+`transport`, `model_missing`). Every scripted step runs under the same turn/call deadlines as the
+app. `--json PATH` also writes one object per agent (config, per-step
 latency, every call with its step, purpose, latency, cost, tokens and error text ≤ 500 chars, the raw
-output of failed calls, and each Persian reply). Keep these files under `data/` (git-ignored).
+output of failed calls, `failure_reason`, and each Persian reply). Keep these files under `data/` (git-ignored).
 
 Run it before physicians are onboarded (it needs `OPENROUTER_API_KEY` in `.env`, and each run
 costs real money):

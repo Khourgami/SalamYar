@@ -10,7 +10,7 @@ Updated by the backend coder at the end of every task.
 | Task | Scope | Status |
 |---|---|---|
 | T1 | Final model set in `agents.yaml` (D-034, D-036), slugs verified | ✅ Done (B-037) |
-| T2 | Turn deadline 80 s / call deadline 50 s (D-038) | ⏳ |
+| T2 | Turn deadline 80 s / call deadline 50 s (D-038) | ✅ Done (B-038) |
 | T3 | Smoke test of the final set ×2, D-025 fixes | ⏳ |
 | T4 | D-036 gate, D-037 targets, compose + nginx | ⏳ |
 | T5 | Report `reports/phase-2b2-model-set.md` | ⏳ |
@@ -113,3 +113,4 @@ Per task: `uv run pytest -q` + `uv run ruff check .`, update this file, commit (
 - 2026-09-30 — Phase 2b T5 — no prior `lab.db` (nothing to back up); `docker compose up --build -d`; evaluator via `exec -T backend uv run … --password-stdin` (random password); through nginx: login 200, 8 agents, `b-sonnet5` 2 turns 200 (11.5 s, 13.6 s, questions), `a-gpt54` 2 turns 200 (4.0 s, 4.2 s), finish 200 → result + ResultCard (28.7 s); `down`, check-created `lab.db*` deleted, listing confirmed (B-036) — no tests
 - 2026-09-30 — Phase 2b T6 — report `reports/phase-2b-real-model-verification.md`, README smoke-test section (`--json`, columns), progress, decisions; total spend USD 0.87 — 306 tests pass, guard 100%, ruff clean
 - 2026-09-30 — Phase 2b-2 T1 — `/models` has all 7 D-034 slugs exactly; `agents.yaml`: sonnet5→sonnet55, gpt5mini→gpt54mini (in place), DeepSeek → `deepseek-v4-pro-0813` + `minimal`/8000 (D-036), new `b-gptoss120b` (enabled) / `a-gptoss120b`; 14 agents, 9 enabled; registry tests for the table, D-036 config and retired-id sync; README ids (B-037) — 307 tests pass
+- 2026-09-30 — Phase 2b-2 T2 — `TurnBudget`/`DeadlineExceeded` (`app/llm/budget.py`); per-turn budget from the session service via `SessionContext.budget`; `json_runner` wraps each call in `asyncio.timeout(min(50, remaining))`, gates the repair on ≥ 15 s; OpenRouter skips its transport retry on < 15 s; B skips the assessment call on < 15 s (state kept); deadline attempts traced `deadline_exceeded` + latency; settings `LLM_CALL_DEADLINE_SECONDS`/`TURN_DEADLINE_SECONDS`, `.env.example`, README; smoke `reason` column (B-038). 15 new tests — 322 tests pass, guard 100%, ruff clean

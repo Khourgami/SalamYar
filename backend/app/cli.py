@@ -101,9 +101,11 @@ async def run_smoke(
     available: set[str] | None,
     json_path: str | None = None,
 ) -> int:
+    from app.settings import get_settings
     from app.smoke import exit_code, format_table, smoke_test, write_json
 
-    results = await smoke_test(configs, llm, available)
+    # D-038: the same turn/call deadlines as the running app
+    results = await smoke_test(configs, llm, available, get_settings().new_turn_budget)
     print(format_table(results))
     if json_path:
         write_json(results, json_path)

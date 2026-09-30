@@ -47,6 +47,7 @@ class StructuredArchitecture:
             purpose="turn",
             trace=ctx.trace,
             prompt_version=cfg.prompt_version,
+            budget=ctx.budget,
         )
         # Always persist the new (full-replacement) clinical state right after the turn call.
         ctx.clinical_state = decision.clinical_state
@@ -57,6 +58,8 @@ class StructuredArchitecture:
             return TurnOutcome(
                 kind="question", agent_message=decision.message_to_patient, backstage=backstage
             )
+        # D-038: the turn and assessment calls share one budget; the state above stays saved
+        ctx.budget.require_follow_up("assessment call")
         return await self._assess(ctx, "agent_concluded", backstage)
 
     async def force_conclude(self, ctx: SessionContext, end_reason: EndReason) -> TurnOutcome:
@@ -83,6 +86,7 @@ class StructuredArchitecture:
             purpose="assessment",
             trace=ctx.trace,
             prompt_version=cfg.prompt_version,
+            budget=ctx.budget,
         )
         final, report, text = apply_guard(raw, cfg.options)
         return TurnOutcome(

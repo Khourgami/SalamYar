@@ -10,6 +10,7 @@ from typing import Any
 
 import httpx
 
+from app.llm.budget import TurnBudget
 from app.llm.client import LLMError, LLMRequest, LLMResponse
 
 logger = logging.getLogger(__name__)
@@ -97,12 +98,17 @@ class OpenRouterClient:
             raw=data,
         )
 
-    async def complete(self, req: LLMRequest) -> LLMResponse:
+    async def complete(self, req: LLMRequest, budget: TurnBudget | None = None) -> LLMResponse:
         body = self.build_body(req)
         url = f"{self.base_url}/chat/completions"
         last_error = "unknown error"
         for attempt in (1, 2):
             if attempt == 2:
+                if budget is not None and not budget.can_follow_up():  # D-038
+                    raise LLMError(
+                        f"OpenRouter request failed, retry skipped "
+                        f"({budget.remaining():.1f} s of the turn budget left): {last_error}"
+                    )
                 await asyncio.sleep(self.retry_delay_seconds)
             started = time.perf_counter()
             try:

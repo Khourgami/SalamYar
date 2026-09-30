@@ -19,6 +19,7 @@ from app.agents.texts_fa import ERROR_FA, GREETING_FA
 from app.db import models as m
 from app.db.types import dumps, loads, utcnow
 from app.errors import AppError, forbidden, not_found
+from app.llm.budget import TurnBudget
 from app.llm.client import LLMClient, LLMError
 from app.schemas.api import (
     AgentPublic,
@@ -33,6 +34,7 @@ from app.schemas.api import (
     SessionSummary,
     TurnResponse,
 )
+from app.settings import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -377,7 +379,7 @@ class _Tracer:
             completion_tokens=resp.completion_tokens if resp else None,
             reasoning_tokens=resp.reasoning_tokens if resp else None,
             cost_usd=resp.cost_usd if resp else None,
-            latency_ms=resp.latency_ms if resp else None,
+            latency_ms=resp.latency_ms if resp else rec.latency_ms,
             attempt=rec.attempt,
         )
         self.db.add(row)
@@ -434,6 +436,11 @@ async def _run_agent(
     return outcome, None
 
 
+def new_turn_budget() -> TurnBudget:
+    """D-038: a fresh budget for every `next_turn` / `force_conclude` (tests patch this)."""
+    return get_settings().new_turn_budget()
+
+
 def _update_totals(db: Session, sess: m.Session) -> None:
     sess.total_cost_usd, sess.total_llm_latency_ms = _llm_totals(db, sess.id)
 
@@ -461,6 +468,7 @@ async def process_turn(
         tracer = _Tracer(db, sess.id)
         ctx = _build_context(db, sess, cfg, tracer)
 
+        ctx.budget = new_turn_budget()
         started = time.perf_counter()
         try:
             outcome, forced_reason = await _run_agent(llm, cfg, ctx, forced)

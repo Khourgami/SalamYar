@@ -179,7 +179,8 @@ async def test_result_to_dict_truncates_error_text() -> None:
     assert len(data["error"]) == JSON_TEXT_LIMIT
     assert data["error"].startswith("LLMError: HTTP 400: xxx")
     assert len(data["call_errors"]) == 1 and len(data["call_errors"][0]) == JSON_TEXT_LIMIT
-    assert data["calls"][0]["latency_ms"] is None  # transport failure: no response
+    assert data["calls"][0]["latency_ms"] >= 0  # no response: wall time of the attempt (D-038)
+    assert data["failure_reason"] == "transport"
 
 
 async def test_result_to_dict_keeps_output_of_failed_step() -> None:

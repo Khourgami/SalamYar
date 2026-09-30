@@ -17,6 +17,7 @@ import json
 from contextvars import ContextVar
 from typing import Any
 
+from app.llm.budget import TurnBudget
 from app.llm.client import LLMMessage, LLMRequest, LLMResponse
 
 FAILURE_TRIGGER = "خطا"
@@ -105,7 +106,7 @@ class DemoLLM:
         self.failed_once.add(key)
         return True
 
-    async def complete(self, req: LLMRequest) -> LLMResponse:
+    async def complete(self, req: LLMRequest, budget: TurnBudget | None = None) -> LLMResponse:
         if self.delay_ms > 0:
             await asyncio.sleep(self.delay_ms / 1000)
         if self._should_fail(req):
