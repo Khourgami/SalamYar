@@ -62,9 +62,17 @@ def _load_registry(path: str | None) -> Registry:
 
 
 def format_agents(agents: Sequence[AgentConfig]) -> str:
-    header = ["id", "display_name", "architecture", "model", "enabled"]
+    header = ["id", "display_name", "architecture", "model", "enabled", "in_$/Mtok", "out_$/Mtok"]
     rows = [
-        [a.id, a.display_name, a.architecture, a.model, "yes" if a.enabled else "no"]
+        [
+            a.id,
+            a.display_name,
+            a.architecture,
+            a.model,
+            "yes" if a.enabled else "no",
+            f"{a.pricing.input_per_mtok:.10g}" if a.pricing else "-",
+            f"{a.pricing.output_per_mtok:.10g}" if a.pricing else "-",
+        ]
         for a in agents
     ]
     widths = [max(len(r[i]) for r in [header, *rows]) for i in range(len(header))]

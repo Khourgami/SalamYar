@@ -3,6 +3,18 @@
 Updated by the backend coder at the end of every task.
 
 ## Current status
+**Phase 2c — Token and cost accounting (contract v1.2): in progress.**
+
+| Task | Scope | Status |
+|---|---|---|
+| T1 | Pricing in the registry, snapshot, `list-agents` | ✅ Done (B-042) |
+| T2 | Per-call estimate, session totals, schema check | ⏳ |
+| T3 | API fields and blindness (contract v1.2), metrics, CSV | ⏳ |
+| T4 | `cost-report` CLI | ⏳ |
+| T5 | Dev server + DemoLLM verification | ⏳ |
+| T6 | Report | ⏳ |
+
+## Phase 2b-2 status
 **Phase 2b-2 — Final model set, turn deadline, M3 gate: ✅ complete (2026-09-30).** Report: `reports/phase-2b2-model-set.md`.
 
 - Spent: USD 0.89 of 3 (`/key` usage 0.8702 → 1.7616; smoke runs 0.43 + 0.40, compose ≈ 0.08).
@@ -123,3 +135,4 @@ Per task: `uv run pytest -q` + `uv run ruff check .`, update this file, commit (
 - 2026-09-30 — Phase 2b-2 T4 gate — D-036 gate: `b-gptoss120b` disabled (conclusion deadline in both runs); 8 enabled agents; D-037 misses: `b-deepseekv4pro` p50/p90, `a-gpt54` p90 (B-040); analysis in `data/t4-2b2-analysis.txt` — 322 tests pass
 - 2026-09-30 — Phase 2b-2 T4 compose — no prior `lab.db`; `docker compose up --build -d`; through nginx: login 200, 8 agents (no `b-gptoss120b`, `POST /sessions` → 404), `b-sonnet55` 2 turns 7.6 s / 7.6 s + finish 13.0 s → result, substitute `b-gpt54mini` 9.5 / 9.1 / 9.4 s → result; `down`, check-created `lab.db*` deleted (B-041) — no tests
 - 2026-09-30 — Phase 2b-2 T5 — report `reports/phase-2b2-model-set.md`, README, progress, decisions; total spend USD 0.89 — 322 tests pass, guard 100%, ruff clean
+- 2026-09-30 — Phase 2c T1 — `pricing` map in `agents.yaml` (7 models from public `/models`, exact ×1e6), `ModelPricing` validation (≥ 0, no unknown keys, every referenced model priced), price copied into `AgentConfig.pricing` → session snapshot; `list-agents` price columns; extra `/models` price fields recorded, not modeled (B-042). 11 new tests — 333 tests pass

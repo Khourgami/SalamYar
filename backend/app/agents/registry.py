@@ -9,7 +9,7 @@ import yaml
 from pydantic import BaseModel, ConfigDict, ValidationError
 from sqlalchemy.orm import Session
 
-from app.agents.config import AgentConfig
+from app.agents.config import AgentConfig, ModelPricing
 from app.agents.prompts.loader import available_versions
 from app.db.models import Agent
 from app.db.types import dumps, utcnow
@@ -25,6 +25,7 @@ class _AgentsFile(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     defaults: dict[str, Any] = {}
+    pricing: dict[str, ModelPricing] = {}
     agents: list[dict[str, Any]]
 
 
@@ -49,14 +50,24 @@ def parse_agents(text: str) -> dict[str, AgentConfig]:
     except ValidationError as exc:
         raise RegistryError(f"invalid agents file: {exc}") from exc
 
+    if "pricing" in doc.defaults:
+        raise RegistryError("'pricing' is a top-level map keyed by model, not a default")
     agents: dict[str, AgentConfig] = {}
     names: set[str] = set()
     versions = set(available_versions())
     for i, entry in enumerate(doc.agents):
+        if "pricing" in entry:
+            raise RegistryError(
+                f"agent #{i + 1} ({entry.get('id')!r}): 'pricing' belongs in the top-level map"
+            )
         try:
             cfg = AgentConfig.model_validate(deep_merge(doc.defaults, entry))
         except ValidationError as exc:
             raise RegistryError(f"agent #{i + 1} ({entry.get('id')!r}) is invalid: {exc}") from exc
+        price = doc.pricing.get(cfg.model)
+        if price is None:  # D-035: every model used by any agent, enabled or not
+            raise RegistryError(f"agent '{cfg.id}': no pricing entry for model '{cfg.model}'")
+        cfg = cfg.model_copy(update={"pricing": price})
         if cfg.id in agents:
             raise RegistryError(f"duplicate agent id '{cfg.id}'")
         if cfg.display_name in names:

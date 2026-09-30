@@ -20,9 +20,12 @@ defaults:
     max_questions: 12
     safety_floor: true
     emergency_threshold: 0.20
+pricing:
+{pricing}
 agents:
 {agents}
 """
+PRICE = "  x/{id}: {{ input_per_mtok: 1.5, output_per_mtok: 6.0, source: t, as_of: d }}\n"
 
 AGENT = """  - id: {id}
     display_name: "{name}"
@@ -32,12 +35,13 @@ AGENT = """  - id: {id}
 {extra}"""
 
 
-def _yaml(*agents: tuple[str, str, str, bool, str]) -> str:
+def _yaml(*agents: tuple[str, str, str, bool, str], priced: bool = True) -> str:
     body = "".join(
         AGENT.format(id=i, name=n, arch=a, enabled=str(e).lower(), extra=x)
         for i, n, a, e, x in agents
     )
-    return BASE.format(agents=body)
+    prices = "".join(PRICE.format(id=a[0]) for a in agents) if priced else "  {}\n"
+    return BASE.format(agents=body, pricing=prices)
 
 
 REPO_TABLE = [  # BACKEND_ARCHITECTURE §8 (D-022, D-034)
@@ -161,6 +165,81 @@ def test_deep_merge_does_not_mutate() -> None:
 def test_invalid_files(text: str, match: str) -> None:
     with pytest.raises(RegistryError, match=match):
         parse_agents(text)
+
+
+# --- pricing (D-035) ----------------------------------------------------------------------
+
+
+def test_repo_config_prices_every_model() -> None:
+    agents = parse_agents(REPO_CONFIG.read_text(encoding="utf-8"))
+    models = {a.model for a in agents.values()}
+    assert len(models) == 7
+    for a in agents.values():
+        assert a.pricing is not None
+        assert a.pricing.input_per_mtok > 0 and a.pricing.output_per_mtok > 0
+        assert a.pricing.source == "openrouter-models" and a.pricing.as_of == "2026-09-30"
+
+
+def test_pricing_attached_to_agent() -> None:
+    agents = parse_agents(_yaml(("a-x", "D1", "simple", True, "")))
+    price = agents["a-x"].pricing
+    assert price is not None
+    assert (price.input_per_mtok, price.output_per_mtok) == (1.5, 6.0)
+    assert agents["a-x"].model_dump(mode="json")["pricing"] == {
+        "input_per_mtok": 1.5,
+        "output_per_mtok": 6.0,
+        "source": "t",
+        "as_of": "d",
+    }
+
+
+def test_missing_price_names_the_model() -> None:
+    # the disabled agent's model is missing too: every referenced model needs a price
+    text = _yaml(("a-x", "D1", "simple", True, "")) + (
+        '  - id: b-off\n    display_name: "D2"\n    architecture: structured\n'
+        "    model: x/unpriced\n    enabled: false\n"
+    )
+    with pytest.raises(RegistryError, match="no pricing entry for model 'x/unpriced'"):
+        parse_agents(text)
+    with pytest.raises(RegistryError, match="x/a-x"):
+        parse_agents(_yaml(("a-x", "D1", "simple", True, ""), priced=False))
+
+
+@pytest.mark.parametrize(
+    "entry,match",
+    [
+        ('{ input_per_mtok: -1, output_per_mtok: 1, source: s, as_of: "d" }', "input_per_mtok"),
+        ('{ input_per_mtok: 1, output_per_mtok: -0.1, source: s, as_of: "d" }', "output_per_mtok"),
+        ('{ input_per_mtok: 1, output_per_mtok: 1, source: s, as_of: "d", cache: 1 }', "cache"),
+        ("{ input_per_mtok: 1, output_per_mtok: 1, source: s }", "as_of"),
+    ],
+)
+def test_invalid_price(entry: str, match: str) -> None:
+    text = _yaml(("a-x", "D1", "simple", True, ""), priced=False).replace(
+        "pricing:\n  {}\n", f"pricing:\n  x/a-x: {entry}\n"
+    )
+    with pytest.raises(RegistryError, match=match):
+        parse_agents(text)
+
+
+def test_pricing_not_allowed_per_agent_or_in_defaults() -> None:
+    per_agent = _yaml(("a-x", "D1", "simple", True, "    pricing: {}\n"))
+    with pytest.raises(RegistryError, match="top-level"):
+        parse_agents(per_agent)
+    in_defaults = _yaml(("a-x", "D1", "simple", True, "")).replace(
+        "defaults:\n", "defaults:\n  pricing: {}\n"
+    )
+    with pytest.raises(RegistryError, match="top-level"):
+        parse_agents(in_defaults)
+
+
+def test_estimate_formula() -> None:
+    from app.agents.config import ModelPricing
+
+    price = ModelPricing(input_per_mtok=1.25, output_per_mtok=10.0, source="s", as_of="d")
+    assert price.estimate(3722, 852) == pytest.approx((3722 * 1.25 + 852 * 10.0) / 1e6)
+    assert price.estimate(None, 10) is None and price.estimate(10, None) is None
+    assert price.estimate(0, 0) == 0.0
 
 
 def test_registry_load_get_enabled(tmp_path: Path) -> None:

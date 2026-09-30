@@ -19,6 +19,23 @@ class AgentOptions(BaseModel):
     emergency_threshold: float = Field(default=0.20, ge=0, le=1)
 
 
+class ModelPricing(BaseModel):
+    """USD per 1M tokens for one model slug (BACKEND_ARCHITECTURE §8a, D-035)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    input_per_mtok: float = Field(ge=0)
+    output_per_mtok: float = Field(ge=0)
+    source: str = Field(min_length=1)
+    as_of: str = Field(min_length=1)
+
+    def estimate(self, prompt_tokens: int | None, output_tokens: int | None) -> float | None:
+        """`(prompt × input + output × output) / 1e6`; None when usage is missing."""
+        if prompt_tokens is None or output_tokens is None:
+            return None
+        return (prompt_tokens * self.input_per_mtok + output_tokens * self.output_per_mtok) / 1e6
+
+
 class AgentConfig(BaseModel):
     """One agent, with the `defaults` block already merged in."""
 
@@ -37,6 +54,10 @@ class AgentConfig(BaseModel):
     output_mode: OutputMode = "json_object"
     prompt_version: str = "v1"
     options: AgentOptions = AgentOptions()
+    # Filled by the registry from the top-level `pricing` map (never set per agent), so the
+    # session snapshot keeps the price that was current when the session started. None only in
+    # snapshots written before v1.2.
+    pricing: ModelPricing | None = None
 
     @field_validator("id")
     @classmethod

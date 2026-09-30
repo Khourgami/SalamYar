@@ -24,6 +24,13 @@ defaults:
     max_questions: 12
     safety_floor: true
     emergency_threshold: 0.20
+pricing:
+  test/simple-model: { input_per_mtok: 1.0, output_per_mtok: 4.0, source: t, as_of: "2026-09-30" }
+  test/struct-model: { input_per_mtok: 2.0, output_per_mtok: 8.0, source: t, as_of: "2026-09-30" }
+  test/capped: { input_per_mtok: 1.0, output_per_mtok: 4.0, source: t, as_of: "2026-09-30" }
+  test/b-capped: { input_per_mtok: 2.0, output_per_mtok: 8.0, source: t, as_of: "2026-09-30" }
+  test/off: { input_per_mtok: 0.5, output_per_mtok: 1.0, source: t, as_of: "2026-09-30" }
+  test/new: { input_per_mtok: 0.5, output_per_mtok: 1.0, source: t, as_of: "2026-09-30" }
 agents:
   - id: a-simple
     display_name: "دکتر ۱"

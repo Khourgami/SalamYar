@@ -272,10 +272,27 @@ def agents_file(tmp_path: Path) -> str:
 def test_list_agents(agents_file: str, capsys: pytest.CaptureFixture) -> None:
     assert cli.main(["list-agents", "--config", agents_file]) == 0
     out = capsys.readouterr().out.splitlines()
-    assert out[0].split() == ["id", "display_name", "architecture", "model", "enabled"]
+    assert out[0].split() == [
+        "id",
+        "display_name",
+        "architecture",
+        "model",
+        "enabled",
+        "in_$/Mtok",
+        "out_$/Mtok",
+    ]
     assert len(out) == 6
-    assert out[1].split() == ["a-simple", "دکتر", "۱", "simple", "test/simple-model", "yes"]
-    assert out[-1].split()[-1] == "no"
+    assert out[1].split() == [
+        "a-simple",
+        "دکتر",
+        "۱",
+        "simple",
+        "test/simple-model",
+        "yes",
+        "1",
+        "4",
+    ]
+    assert out[-1].split()[-3:] == ["no", "0.5", "1"]
 
 
 def test_list_agents_repo_config(capsys: pytest.CaptureFixture) -> None:
