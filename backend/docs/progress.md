@@ -3,17 +3,22 @@
 Updated by the backend coder at the end of every task.
 
 ## Current status
-**Phase 2b-2 — Final model set, turn deadline, M3 gate: 🔄 in progress (2026-09-30).**
+**Phase 2b-2 — Final model set, turn deadline, M3 gate: ✅ complete (2026-09-30).** Report: `reports/phase-2b2-model-set.md`.
 
-- `/key` usage at phase start: USD 0.8702 (limit 50). Phase budget USD 3 → stop real calls before usage reaches USD 3.87.
+- Spent: USD 0.89 of 3 (`/key` usage 0.8702 → 1.7616; smoke runs 0.43 + 0.40, compose ≈ 0.08).
+- 322 tests pass; guard 100% line+branch; ruff clean.
+- Final model set (D-034) in `agents.yaml`, all 7 slugs verified; DeepSeek `minimal`/8000 (D-036); 80 s turn / 50 s call deadlines (D-038).
+- **Enabled agents for M3: 8** — `b-gptoss120b` disabled by the D-036 gate (conclusion deadline in both runs, B-040). D-037 misses: `b-deepseekv4pro` p50/p90, `a-gpt54` p90 (marginal).
+- Uncommitted product-owner edits to `docs/BACKEND_ARCHITECTURE.md` were left out of the `backend:` commits (the coder may not edit that file).
+- Next: phase 2c (cost accounting, D-035), then M3 QA with the 8 enabled agents.
 
 | Task | Scope | Status |
 |---|---|---|
 | T1 | Final model set in `agents.yaml` (D-034, D-036), slugs verified | ✅ Done (B-037) |
 | T2 | Turn deadline 80 s / call deadline 50 s (D-038) | ✅ Done (B-038) |
 | T3 | Smoke test of the final set ×2, D-025 fixes | ✅ Done — no config change (B-039) |
-| T4 | D-036 gate, D-037 targets, compose + nginx | ⏳ |
-| T5 | Report `reports/phase-2b2-model-set.md` | ⏳ |
+| T4 | D-036 gate, D-037 targets, compose + nginx | ✅ Done (B-040, B-041) |
+| T5 | Report `reports/phase-2b2-model-set.md` | ✅ Done |
 
 ## Phase 2b status
 **Phase 2b — Real-model verification: ✅ complete (2026-09-30).** Report: `reports/phase-2b-real-model-verification.md`.
@@ -116,3 +121,5 @@ Per task: `uv run pytest -q` + `uv run ruff check .`, update this file, commit (
 - 2026-09-30 — Phase 2b-2 T2 — `TurnBudget`/`DeadlineExceeded` (`app/llm/budget.py`); per-turn budget from the session service via `SessionContext.budget`; `json_runner` wraps each call in `asyncio.timeout(min(50, remaining))`, gates the repair on ≥ 15 s; OpenRouter skips its transport retry on < 15 s; B skips the assessment call on < 15 s (state kept); deadline attempts traced `deadline_exceeded` + latency; settings `LLM_CALL_DEADLINE_SECONDS`/`TURN_DEADLINE_SECONDS`, `.env.example`, README; smoke `reason` column (B-038). 15 new tests — 322 tests pass, guard 100%, ruff clean
 - 2026-09-30 — Phase 2b-2 T3 — real smoke run 1: 12/14 pass (USD 0.43); run 2: 11/14 (USD 0.40); no provider 4xx → no D-025 change, no greeting fallback (B-039). Failures: `b-gptoss120b` conclude `deadline` ×2; `a-gemini3flash` ×2 and `a-deepseekv4pro` (run 2) ask after forced conclude. `/key` usage 1.6968 (phase spend 0.83) — no tests
 - 2026-09-30 — Phase 2b-2 T4 gate — D-036 gate: `b-gptoss120b` disabled (conclusion deadline in both runs); 8 enabled agents; D-037 misses: `b-deepseekv4pro` p50/p90, `a-gpt54` p90 (B-040); analysis in `data/t4-2b2-analysis.txt` — 322 tests pass
+- 2026-09-30 — Phase 2b-2 T4 compose — no prior `lab.db`; `docker compose up --build -d`; through nginx: login 200, 8 agents (no `b-gptoss120b`, `POST /sessions` → 404), `b-sonnet55` 2 turns 7.6 s / 7.6 s + finish 13.0 s → result, substitute `b-gpt54mini` 9.5 / 9.1 / 9.4 s → result; `down`, check-created `lab.db*` deleted (B-041) — no tests
+- 2026-09-30 — Phase 2b-2 T5 — report `reports/phase-2b2-model-set.md`, README, progress, decisions; total spend USD 0.89 — 322 tests pass, guard 100%, ruff clean

@@ -102,7 +102,9 @@ uv run python -m app.cli smoke-test --agent b-sonnet55                          
 If a provider rejects a parameter, the fix is a per-model config change in `config/agents.yaml`
 (`send_temperature: false`, `output_mode: prompt_only`, or `reasoning_effort: null`), following
 the rule table from the phase-2 prompt (D-025). Prompts are never changed for this. The first real
-runs (phase 2b, `docs/reports/phase-2b-real-model-verification.md`) needed no such change.
+runs (phase 2b, `docs/reports/phase-2b-real-model-verification.md`, and phase 2b-2 on the final
+model set, `docs/reports/phase-2b2-model-set.md`) needed no such change. Agents that fail the
+conclusion or take > 75 s in a turn are disabled for M3 by the D-036 gate (`# D-036 gate` comment).
 
 ## Agents
 
