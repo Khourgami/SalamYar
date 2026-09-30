@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { ApiError, writeStoredAuth } from '@/api/client'
 import {
+  adminGetSession,
   adminListSessions,
   adminMetrics,
   createSession,
@@ -572,5 +573,75 @@ describe('admin', () => {
     expect(byModel.rows.every((row) => row.architecture === null)).toBe(true)
 
     expect(byAgent.generated_at).toBeTruthy()
+  })
+})
+
+describe('v1.2 — cost, token and call-count blindness (D-035)', () => {
+  const HIDDEN_STATS = [
+    'total_cost_usd',
+    'llm_calls',
+    'prompt_tokens',
+    'completion_tokens',
+    'reasoning_tokens',
+  ] as const
+
+  it('keeps the three non-hidden stats visible before evaluation', async () => {
+    await loginAs('doctor', 'doctor123')
+    const detail = await getSession(FIXTURE_SESSION_IDS.completedStructured)
+
+    expect(typeof detail.result?.stats.questions_asked).toBe('number')
+    expect(typeof detail.result?.stats.duration_seconds).toBe('number')
+    expect(typeof detail.result?.stats.mean_turn_latency_ms).toBe('number')
+  })
+
+  it('nulls the five stats for an evaluator until the session is evaluated', async () => {
+    await loginAs('doctor', 'doctor123')
+
+    const before = await getSession(FIXTURE_SESSION_IDS.completedStructured)
+    expect(before.evaluation).toBeNull()
+    for (const key of HIDDEN_STATS) {
+      expect(before.result?.stats[key], `before evaluation: ${key}`).toBeNull()
+    }
+
+    await submitEvaluation(FIXTURE_SESSION_IDS.completedStructured, validEvaluationInput())
+
+    const after = await getSession(FIXTURE_SESSION_IDS.completedStructured)
+    expect(after.evaluation).not.toBeNull()
+    for (const key of HIDDEN_STATS) {
+      expect(typeof after.result?.stats[key], `after evaluation: ${key}`).toBe('number')
+    }
+  })
+
+  it('always shows the five stats to an admin, even before evaluation', async () => {
+    await loginAs('admin', 'admin123')
+
+    const detail = await adminGetSession(FIXTURE_SESSION_IDS.completedStructured)
+    expect(detail.evaluation).toBeNull()
+    for (const key of HIDDEN_STATS) {
+      expect(typeof detail.result?.stats[key], `admin: ${key}`).toBe('number')
+    }
+  })
+})
+
+describe('v1.2 — metrics rows carry the cost and token columns', () => {
+  const NEW_COLUMNS = [
+    'total_cost_usd',
+    'mean_llm_calls',
+    'mean_prompt_tokens',
+    'mean_completion_tokens',
+    'mean_reasoning_tokens',
+  ] as const
+
+  it('includes the five new columns, with at least one row null', async () => {
+    await loginAs('admin', 'admin123')
+    const response = await adminMetrics('agent')
+
+    for (const row of response.rows) {
+      for (const key of NEW_COLUMNS) {
+        expect(key in row, `MetricsRow.${key}`).toBe(true)
+        expect(row[key] === null || typeof row[key] === 'number', `MetricsRow.${key}`).toBe(true)
+      }
+    }
+    expect(response.rows.some((row) => row.total_cost_usd === null)).toBe(true)
   })
 })

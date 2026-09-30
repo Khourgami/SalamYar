@@ -28,6 +28,7 @@ import {
   CHAT_PLACEHOLDER,
   CHAT_READ_ONLY,
   CHAT_SEND,
+  CHAT_SLOW_TURN,
   CHAT_TYPING,
   NAV_DOCTORS,
   NETWORK_ERROR,
@@ -35,6 +36,9 @@ import {
   questionsCountText,
 } from '@/i18n/uiText'
 import { faNumber } from '@/lib/format'
+
+/** UI_SPEC v1.2 §3.3 (D-039) — how long a turn may run before the bubble adds its caption. */
+const SLOW_TURN_HINT_MS = 15_000
 
 export interface ChatPanelProps {
   session: SessionDetail
@@ -95,6 +99,16 @@ export function ChatPanel({ session, readOnly = false }: ChatPanelProps) {
 
   const busy = sendMutation.isPending || finishMutation.isPending
   const messages = session.messages
+
+  /** UI_SPEC v1.2 §3.3 (D-039) — the slow-turn caption. Reset for every new turn and removed as
+   * soon as the turn ends (success, error or timeout), so it can never outlive the typing bubble. */
+  const [slowTurn, setSlowTurn] = useState(false)
+  useEffect(() => {
+    setSlowTurn(false)
+    if (!busy) return undefined
+    const timer = setTimeout(() => setSlowTurn(true), SLOW_TURN_HINT_MS)
+    return () => clearTimeout(timer)
+  }, [busy])
 
   const handleSend = useCallback(
     (text: string) => {
@@ -190,16 +204,23 @@ export function ChatPanel({ session, readOnly = false }: ChatPanelProps) {
           />
         ))}
 
-        {sendMutation.isPending || finishMutation.isPending ? (
+        {busy ? (
           <li className="flex flex-col items-start gap-1" data-testid="typing-indicator">
             <span className="mb-1 text-caption text-ink-500">{session.agent.display_name}</span>
-            <span className="inline-flex items-center gap-2 rounded-lg rounded-ss-sm border border-line bg-surface px-4 py-3 text-ink-700">
-              <span aria-hidden="true" className="flex gap-1">
-                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-ink-400" />
-                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-ink-400 [animation-delay:150ms]" />
-                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-ink-400 [animation-delay:300ms]" />
+            <span className="inline-flex flex-col gap-1 rounded-lg rounded-ss-sm border border-line bg-surface px-4 py-3 text-ink-700">
+              <span className="inline-flex items-center gap-2">
+                <span aria-hidden="true" className="flex gap-1">
+                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-ink-400" />
+                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-ink-400 [animation-delay:150ms]" />
+                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-ink-400 [animation-delay:300ms]" />
+                </span>
+                <span className="sr-only">{CHAT_TYPING}</span>
               </span>
-              <span className="sr-only">{CHAT_TYPING}</span>
+              {slowTurn ? (
+                <span className="text-caption text-ink-500" data-testid="slow-turn-hint">
+                  {CHAT_SLOW_TURN}
+                </span>
+              ) : null}
             </span>
           </li>
         ) : null}

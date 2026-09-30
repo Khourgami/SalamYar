@@ -45,13 +45,18 @@ const SESSION_IDS = {
   evaluated: '33333333-3333-4333-8333-333333333333',
 }
 
-/** Forbidden before evaluation: the 8 agent ids, 6 model slugs, architecture words. */
+/**
+ * Forbidden before evaluation: the 8 agent ids, 6 model slugs, architecture words, and — v1.2
+ * (D-035) — the five cost/token stat labels. A formatted `$` amount is checked separately (see
+ * `blindnessProbe`), because a bare `$` could also occur in Vite's injected dev scripts.
+ */
 const FORBIDDEN = [
   'b-gemini3flash', 'a-sonnet5', 'b-gpt54', 'b-deepseekv4pro', 'a-gpt54',
   'b-sonnet5', 'b-gpt5mini', 'b-gemini31pro',
   'google/gemini-3-flash', 'anthropic/claude-sonnet-5', 'openai/gpt-5.4',
   'deepseek/deepseek-v4-pro', 'openai/gpt-5-mini', 'google/gemini-3.1-pro',
   'structured', 'simple',
+  'هزینه', 'تعداد فراخوانی مدل', 'توکن ورودی', 'توکن خروجی', 'توکن استدلال',
 ]
 
 const DOCTOR = {
@@ -239,8 +244,12 @@ const bannerProbe = /* js */ `(() => {
 
 const blindnessProbe = /* js */ `(() => {
   const html = document.documentElement.outerHTML
+  const rootHtml = (document.getElementById('root') || document.documentElement).outerHTML
   const forbidden = ${JSON.stringify(FORBIDDEN)}
-  return { leaks: forbidden.filter((needle) => html.includes(needle)) }
+  const leaks = forbidden.filter((needle) => html.includes(needle))
+  // v1.2 (D-035): a leaked cost would render as a dollar amount inside the app root.
+  if (/\\$\\s?\\d/.test(rootHtml)) leaks.push('$<amount>')
+  return { leaks }
 })()`
 
 const shellProbe = /* js */ `(() => {

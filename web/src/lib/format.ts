@@ -18,6 +18,15 @@ export function faNumber(value: number | null | undefined): string {
   return value.toLocaleString(FA_LOCALE)
 }
 
+/**
+ * `۱۲٬۴۸۰` — a whole number (counts, token totals) with Persian digits and thousands
+ * separators. Rounds a fractional input so a summed mean can never leak decimals into a count.
+ */
+export function faInteger(value: number | null | undefined): string {
+  if (!isFormattable(value)) return EMPTY_VALUE
+  return Math.round(value).toLocaleString(FA_LOCALE)
+}
+
 /** `۳٫۵` — fixed number of decimals (default 1, used for KPI scores). */
 export function faDecimal(value: number | null | undefined, fractionDigits = 1): string {
   if (!isFormattable(value)) return EMPTY_VALUE

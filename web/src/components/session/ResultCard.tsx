@@ -33,15 +33,19 @@ import {
   RESULT_PEDIATRIC_NOTE,
   RESULT_SPECIALTY,
   RESULT_SPECIALTY_SECONDARY,
+  RESULT_STATS_COMPLETION_TOKENS,
   RESULT_STATS_COST,
   RESULT_STATS_DURATION,
   RESULT_STATS_LATENCY,
+  RESULT_STATS_LLM_CALLS,
+  RESULT_STATS_PROMPT_TOKENS,
   RESULT_STATS_QUESTIONS,
+  RESULT_STATS_REASONING_TOKENS,
   RESULT_STATS_TITLE,
   RESULT_TITLE,
   safetyFloorText,
 } from '@/i18n/uiText'
-import { faDuration, faLatency, faNumber, faPercent, usd } from '@/lib/format'
+import { faDuration, faInteger, faLatency, faNumber, faPercent, usd } from '@/lib/format'
 
 const TH_CLASS = 'border-b border-line px-2 py-2 text-start text-caption font-semibold text-ink-500'
 const TD_CLASS = 'border-b border-line px-2 py-2 align-top'
@@ -177,6 +181,31 @@ export function ResultCard({ result }: { result: ResultCardData }) {
     probability >= 0.2 ? 'bg-danger-600' : probability >= 0.1 ? 'bg-warning-600' : 'bg-primary-600'
   const probabilityPercent = Math.min(100, Math.max(0, probability * 100))
 
+  // UI_SPEC v1.2 §3.3 (D-035) — the three base stats, then the v1.2 cost/token stats **only when
+  // the value is a number**. A `null` (hidden) value renders nothing at all: no «—», no empty
+  // label, so the DOM never hints that a value exists. `typeof` also treats a response that omits
+  // the key entirely the same as `null`.
+  const statItems: { label: string; value: string }[] = [
+    { label: RESULT_STATS_QUESTIONS, value: faNumber(stats.questions_asked) },
+    { label: RESULT_STATS_DURATION, value: faDuration(stats.duration_seconds) },
+    { label: RESULT_STATS_LATENCY, value: faLatency(stats.mean_turn_latency_ms) },
+  ]
+  if (typeof stats.total_cost_usd === 'number') {
+    statItems.push({ label: RESULT_STATS_COST, value: usd(stats.total_cost_usd) })
+  }
+  if (typeof stats.llm_calls === 'number') {
+    statItems.push({ label: RESULT_STATS_LLM_CALLS, value: faInteger(stats.llm_calls) })
+  }
+  if (typeof stats.prompt_tokens === 'number') {
+    statItems.push({ label: RESULT_STATS_PROMPT_TOKENS, value: faInteger(stats.prompt_tokens) })
+  }
+  if (typeof stats.completion_tokens === 'number') {
+    statItems.push({ label: RESULT_STATS_COMPLETION_TOKENS, value: faInteger(stats.completion_tokens) })
+  }
+  if (typeof stats.reasoning_tokens === 'number') {
+    statItems.push({ label: RESULT_STATS_REASONING_TOKENS, value: faInteger(stats.reasoning_tokens) })
+  }
+
   return (
     <Card data-testid="result-card" className="flex flex-col gap-5">
       <h2 className="text-h2 text-primary-900">{RESULT_TITLE}</h2>
@@ -277,10 +306,9 @@ export function ResultCard({ result }: { result: ResultCardData }) {
       <section className="space-y-2">
         <h3 className="text-h3 text-primary-900">{RESULT_STATS_TITLE}</h3>
         <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <StatItem label={RESULT_STATS_QUESTIONS} value={faNumber(stats.questions_asked)} />
-          <StatItem label={RESULT_STATS_DURATION} value={faDuration(stats.duration_seconds)} />
-          <StatItem label={RESULT_STATS_LATENCY} value={faLatency(stats.mean_turn_latency_ms)} />
-          <StatItem label={RESULT_STATS_COST} value={usd(stats.total_cost_usd)} />
+          {statItems.map((item) => (
+            <StatItem key={item.label} label={item.label} value={item.value} />
+          ))}
         </dl>
       </section>
 

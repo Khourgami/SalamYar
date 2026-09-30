@@ -4,6 +4,7 @@ import {
   USERS,
   completeSession,
   createSessionFor,
+  evaluationInput,
   expectErrorBody,
   expectMessage,
   expectSessionDetail,
@@ -136,5 +137,56 @@ describe('T2 · sessions', () => {
       (message) => message.role === 'patient' && message.text === text,
     )
     expect(copies).toHaveLength(1)
+  })
+
+  it('v1.2 — the five cost/token stats are null until evaluation, then numbers; the admin always sees them', async () => {
+    const HIDDEN = [
+      'total_cost_usd',
+      'llm_calls',
+      'prompt_tokens',
+      'completion_tokens',
+      'reasoning_tokens',
+    ] as const
+
+    const created = await createSessionFor(doctor.token, 'b-')
+    const completed = await completeSession(doctor.token, created.id)
+    const before = (completed.detail as { result: { stats: Record<string, unknown> } }).result
+    expect(before, 'a completed session has a result card').toBeTruthy()
+    for (const key of HIDDEN) {
+      expect(before.stats[key], `unevaluated ResultCard.stats.${key}`).toBeNull()
+    }
+
+    // the admin reads the same still-unevaluated session and always gets the values
+    const admin = await login(USERS.admin.username, USERS.admin.password)
+    const adminView = await request<{ result: { stats: Record<string, unknown> } }>(
+      `/admin/sessions/${created.id}`,
+      { token: admin.token },
+    )
+    expect(adminView.status, adminView.rawText).toBe(200)
+    for (const key of ['llm_calls', 'prompt_tokens', 'completion_tokens'] as const) {
+      expect(typeof adminView.body.result.stats[key], `admin ResultCard.stats.${key}`).toBe('number')
+    }
+
+    // after the evaluator submits, the values are revealed to them too
+    const evaluation = await request(`/sessions/${created.id}/evaluation`, {
+      method: 'POST',
+      token: doctor.token,
+      body: evaluationInput(),
+    })
+    expect(evaluation.status, evaluation.rawText).toBe(201)
+
+    const after = await request<{ result: { stats: Record<string, unknown> } }>(
+      `/sessions/${created.id}`,
+      { token: doctor.token },
+    )
+    expect(after.status, after.rawText).toBe(200)
+    const stats = after.body.result.stats
+    for (const key of ['llm_calls', 'prompt_tokens', 'completion_tokens'] as const) {
+      expect(typeof stats[key], `evaluated ResultCard.stats.${key}`).toBe('number')
+    }
+    // an all-None provider (the dev server's DemoLLM) may legitimately report no reasoning/cost
+    for (const key of ['reasoning_tokens', 'total_cost_usd'] as const) {
+      expect(stats[key] === null || typeof stats[key] === 'number', `evaluated ${key}`).toBe(true)
+    }
   })
 })

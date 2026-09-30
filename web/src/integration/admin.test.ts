@@ -47,6 +47,17 @@ function expectMetricsRow(value: unknown): void {
   )
   for (const key of SAFETY_FLAG_KEYS) expect(typeof flags[key], `safety_flag_counts.${key}`).toBe('number')
   expectExactKeys(row.pairwise, ['wins', 'losses', 'ties'], [], 'MetricsRow.pairwise')
+  // v1.2 (D-035): the five cost/token columns are nullable numbers.
+  for (const key of [
+    'mean_cost_usd',
+    'total_cost_usd',
+    'mean_llm_calls',
+    'mean_prompt_tokens',
+    'mean_completion_tokens',
+    'mean_reasoning_tokens',
+  ]) {
+    expect(row[key] === null || typeof row[key] === 'number', `MetricsRow.${key}`).toBe(true)
+  }
 }
 
 /** Scenarios 13–15: admin metrics, CSV export, and the agent-config reload. */

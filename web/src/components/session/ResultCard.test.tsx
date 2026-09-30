@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { HttpResponse, http } from 'msw'
 import { screen, within } from '@testing-library/react'
 
-import { createSession, finishSession } from '@/api/endpoints'
+import { createSession, finishSession, submitEvaluation } from '@/api/endpoints'
 import type { SessionDetail } from '@/api/types'
 import { FIXTURE_SESSION_IDS } from '@/mocks/fixtures'
 import { server } from '@/mocks/server'
@@ -15,15 +15,48 @@ import {
   RESULT_MISSING_INFO_TITLE,
   RESULT_PEDIATRIC_NOTE,
   RESULT_SPECIALTY,
+  RESULT_STATS_COMPLETION_TOKENS,
   RESULT_STATS_COST,
   RESULT_STATS_DURATION,
   RESULT_STATS_LATENCY,
+  RESULT_STATS_LLM_CALLS,
+  RESULT_STATS_PROMPT_TOKENS,
   RESULT_STATS_QUESTIONS,
+  RESULT_STATS_REASONING_TOKENS,
   RESULT_TITLE,
   safetyFloorText,
 } from '@/i18n/uiText'
 import { setupMockApi } from '@/test/msw'
+import { validEvaluationInput } from '@/test/factories'
 import { renderApp, signInAs } from '@/test/renderApp'
+
+/** The five stats hidden from an evaluator before evaluation (UI_SPEC v1.2 §3.3, D-035). */
+const HIDDEN_STATS_LABELS = [
+  RESULT_STATS_COST,
+  RESULT_STATS_LLM_CALLS,
+  RESULT_STATS_PROMPT_TOKENS,
+  RESULT_STATS_COMPLETION_TOKENS,
+  RESULT_STATS_REASONING_TOKENS,
+]
+
+/** Every cost/token value of the completed structured fixture, formatted for the screen. */
+const FIXTURE_STAT_VALUES: Record<string, string> = {
+  [RESULT_STATS_COST]: '۰٫۰۴۳۱',
+  [RESULT_STATS_LLM_CALLS]: '۷',
+  [RESULT_STATS_PROMPT_TOKENS]: '۱۲٬۴۸۰',
+  [RESULT_STATS_COMPLETION_TOKENS]: '۳٬۲۰۵',
+  [RESULT_STATS_REASONING_TOKENS]: '۱٬۰۲۴',
+}
+
+/** Values long enough that finding one in the HTML proves a leaked stat. */
+const FIXTURE_STAT_VALUES_UNIQUE = ['۰٫۰۴۳۱', '۱۲٬۴۸۰', '۳٬۲۰۵', '۱٬۰۲۴']
+
+/** Read the rendered value of the stat whose label is `label`. */
+function statValue(card: HTMLElement, label: string): string {
+  const item = within(card).getByText(label).closest('div')
+  if (!item) throw new Error(`no stat item for ${label}`)
+  return item.querySelector('dd')?.textContent ?? ''
+}
 
 setupMockApi()
 
@@ -69,7 +102,6 @@ describe('result card', () => {
     expect(within(card).getByText(RESULT_STATS_QUESTIONS)).toBeInTheDocument()
     expect(within(card).getByText(RESULT_STATS_DURATION)).toBeInTheDocument()
     expect(within(card).getByText(RESULT_STATS_LATENCY)).toBeInTheDocument()
-    expect(within(card).getByText(RESULT_STATS_COST)).toBeInTheDocument()
 
     // no escalation and no pediatric note on this fixture
     expect(within(card).queryByTestId('safety-floor-note')).not.toBeInTheDocument()
@@ -151,8 +183,12 @@ describe('result card', () => {
         stats: {
           questions_asked: 0,
           duration_seconds: 0,
-          total_cost_usd: null,
           mean_turn_latency_ms: null,
+          total_cost_usd: null,
+          llm_calls: null,
+          prompt_tokens: null,
+          completion_tokens: null,
+          reasoning_tokens: null,
         },
       },
       backstage: [{ message_id: 'ghost-message' }],
@@ -171,5 +207,51 @@ describe('result card', () => {
 
     // a backstage turn with no optional field at all still renders
     expect(screen.getByTestId('backstage-empty-turn')).toBeInTheDocument()
+  })
+})
+
+describe('v1.2 cost and token stats (D-035)', () => {
+  it('blindness probe: renders none of the five labels or any USD value before evaluation', async () => {
+    signInAs('doctor')
+    const { container } = renderApp(`/sessions/${FIXTURE_SESSION_IDS.completedStructured}`)
+
+    const card = await screen.findByTestId('result-card')
+
+    for (const label of HIDDEN_STATS_LABELS) {
+      expect(within(card).queryByText(label)).not.toBeInTheDocument()
+      expect(container.innerHTML).not.toContain(label)
+    }
+    // no formatted cost and no dollar sign anywhere on the page
+    for (const value of FIXTURE_STAT_VALUES_UNIQUE) {
+      expect(container.innerHTML).not.toContain(value)
+    }
+    expect(container.innerHTML).not.toContain('$')
+  })
+
+  it('renders all five with Persian formatting once the session is evaluated', async () => {
+    signInAs('doctor')
+    await submitEvaluation(FIXTURE_SESSION_IDS.completedStructured, validEvaluationInput())
+    renderApp(`/sessions/${FIXTURE_SESSION_IDS.completedStructured}`)
+
+    const card = await screen.findByTestId('result-card')
+
+    for (const [label, value] of Object.entries(FIXTURE_STAT_VALUES)) {
+      expect(within(card).getByText(label)).toBeInTheDocument()
+      expect(statValue(card, label)).toBe(value)
+    }
+    // the base stats stay visible too
+    expect(within(card).getByText(RESULT_STATS_QUESTIONS)).toBeInTheDocument()
+  })
+
+  it('shows the five stats to an admin on an unevaluated session', async () => {
+    signInAs('admin')
+    renderApp(`/admin/sessions/${FIXTURE_SESSION_IDS.completedStructured}`)
+
+    const card = await screen.findByTestId('result-card')
+
+    for (const [label, value] of Object.entries(FIXTURE_STAT_VALUES)) {
+      expect(within(card).getByText(label)).toBeInTheDocument()
+      expect(statValue(card, label)).toBe(value)
+    }
   })
 })

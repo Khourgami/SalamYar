@@ -401,8 +401,13 @@ function buildResultCard(session: StoredSession, mockCase: MockCase): ResultCard
     stats: {
       questions_asked: countQuestions(session),
       duration_seconds: Math.max(0, Math.round((completed - created) / 1000)),
-      total_cost_usd: 0.0431,
       mean_turn_latency_ms: meanLatencyMs(session),
+      // v1.2 (D-035): masked to `null` for a non-admin caller until the session is evaluated.
+      total_cost_usd: 0.0431,
+      llm_calls: countQuestions(session) + 3,
+      prompt_tokens: 12_480,
+      completion_tokens: 3_205,
+      reasoning_tokens: 1_024,
     },
   }
 }

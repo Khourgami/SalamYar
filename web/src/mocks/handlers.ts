@@ -250,6 +250,9 @@ function plausibleRow(
   model: string | null,
   seed: number,
 ): MetricsRow {
+  // v1.2 (D-035): a session whose LLM calls reported no cost/usage leaves these columns null.
+  // Every fourth row is left unreported so the UI's empty-value and null-sort paths are covered.
+  const reported = seed % 4 !== 0
   return {
     key,
     label,
@@ -268,7 +271,12 @@ function plausibleRow(
     mean_questions: 4 + (seed % 5),
     turn_latency_p50_ms: 4_200 + seed * 380,
     turn_latency_p90_ms: 9_800 + seed * 900,
-    mean_cost_usd: 0.0204 + seed * 0.0043,
+    mean_cost_usd: reported ? 0.0204 + seed * 0.0043 : null,
+    total_cost_usd: reported ? 0.1224 + seed * 0.0258 : null,
+    mean_llm_calls: reported ? 4 + (seed % 3) * 0.5 : null,
+    mean_prompt_tokens: reported ? 8_450 + seed * 320 : null,
+    mean_completion_tokens: reported ? 1_920 + seed * 140 : null,
+    mean_reasoning_tokens: reported ? 640 + seed * 90 : null,
     feedback_up: 5 + seed,
     feedback_down: seed % 4,
     pairwise: { wins: seed % 4, losses: (seed + 1) % 3, ties: seed % 2 },

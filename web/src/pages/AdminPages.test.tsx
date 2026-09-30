@@ -22,7 +22,12 @@ import {
 import {
   CHAT_FEEDBACK_DOWN,
   CHAT_FEEDBACK_UP,
+  ADMIN_COL_MEAN_COMPLETION_TOKENS,
+  ADMIN_COL_MEAN_LLM_CALLS,
+  ADMIN_COL_MEAN_PROMPT_TOKENS,
+  ADMIN_COL_MEAN_REASONING_TOKENS,
   ADMIN_COL_SESSIONS,
+  ADMIN_COL_TOTAL_COST,
   ADMIN_COL_UNDERTRIAGE,
   ADMIN_EXPORT,
   ADMIN_GROUP_BY_AGENT,
@@ -63,6 +68,11 @@ function metricsRow(overrides: Partial<MetricsRow> & { key: string; label: strin
     turn_latency_p50_ms: null,
     turn_latency_p90_ms: null,
     mean_cost_usd: null,
+    total_cost_usd: null,
+    mean_llm_calls: null,
+    mean_prompt_tokens: null,
+    mean_completion_tokens: null,
+    mean_reasoning_tokens: null,
     feedback_up: 0,
     feedback_down: 0,
     pairwise: { wins: 0, losses: 0, ties: 0 },
@@ -122,6 +132,48 @@ describe('admin dashboard', () => {
       expect(within(firstRow).getByText('دکتر ۴')).toBeInTheDocument()
     })
     expect(sessionsHeader.closest('th')).toHaveAttribute('aria-sort', 'descending')
+  })
+
+  it('renders the v1.2 cost and token columns and sorts by هزینه کل with a null row last', async () => {
+    const user = userEvent.setup()
+    const rows = [
+      metricsRow({ key: 'a', label: 'دکتر الف', total_cost_usd: 0.5, mean_llm_calls: 6.5 }),
+      metricsRow({ key: 'b', label: 'دکتر ب', total_cost_usd: null }),
+      metricsRow({ key: 'c', label: 'دکتر ج', total_cost_usd: 0.1, mean_prompt_tokens: 12_480.4 }),
+    ]
+    server.use(
+      http.get('*/api/v1/admin/metrics', () =>
+        HttpResponse.json({ group_by: 'agent', rows, generated_at: new Date().toISOString() }),
+      ),
+    )
+
+    signInAs('admin')
+    renderApp('/admin')
+    const table = await screen.findByTestId('metrics-table')
+
+    for (const label of [
+      ADMIN_COL_TOTAL_COST,
+      ADMIN_COL_MEAN_LLM_CALLS,
+      ADMIN_COL_MEAN_PROMPT_TOKENS,
+      ADMIN_COL_MEAN_COMPLETION_TOKENS,
+      ADMIN_COL_MEAN_REASONING_TOKENS,
+    ]) {
+      expect(within(table).getByRole('columnheader', { name: label })).toBeInTheDocument()
+    }
+
+    const firstColumn = () =>
+      within(table)
+        .getAllByTestId('metrics-row')
+        .map((row) => row.querySelector('td')?.textContent ?? '')
+
+    await user.click(within(table).getByRole('button', { name: ADMIN_COL_TOTAL_COST }))
+    await waitFor(() => {
+      // ascending: the smallest total cost first, the `null` row last
+      expect(firstColumn()).toEqual(['دکتر ج', 'دکتر الف', 'دکتر ب'])
+    })
+    expect(
+      within(table).getByRole('button', { name: ADMIN_COL_TOTAL_COST }).closest('th'),
+    ).toHaveAttribute('aria-sort', 'ascending')
   })
 
   it('refetches when the group-by switch changes', async () => {

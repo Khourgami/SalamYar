@@ -161,8 +161,19 @@ export interface ResultCard {
     questions_asked: number
     /** session created → completed */
     duration_seconds: number
-    total_cost_usd: number | null
     mean_turn_latency_ms: number | null
+    // v1.2 — the five fields below are null for a non-admin caller until the session is
+    // evaluated (they would hint at the model/architecture). Admins always get values.
+    /** Sum of OpenRouter-reported cost; null if no call reported one. */
+    total_cost_usd: number | null
+    /** All LLM attempts of the session (turn, assessment, repair). */
+    llm_calls: number | null
+    /** Sums over all attempts; null if no call reported usage. */
+    prompt_tokens: number | null
+    /** As reported by the provider (may include reasoning tokens). */
+    completion_tokens: number | null
+    /** Informational; may be part of `completion_tokens` (B-decision). */
+    reasoning_tokens: number | null
   }
 }
 
@@ -379,6 +390,14 @@ export interface MetricsRow {
   turn_latency_p50_ms: number | null
   turn_latency_p90_ms: number | null
   mean_cost_usd: number | null
+  /** v1.2: sum over completed sessions with a reported cost. */
+  total_cost_usd: number | null
+  /** v1.2: per completed session. */
+  mean_llm_calls: number | null
+  /** v1.2: per completed session. */
+  mean_prompt_tokens: number | null
+  mean_completion_tokens: number | null
+  mean_reasoning_tokens: number | null
   feedback_up: number
   feedback_down: number
   pairwise: { wins: number; losses: number; ties: number }

@@ -183,7 +183,18 @@ export const KEYS = {
   SessionDetailExtra: { required: ['messages', 'result', 'backstage', 'feedback', 'evaluation', 'reveal'] },
   TurnResponse: { required: ['patient_message', 'agent_message', 'session'] },
   ResultCard: { required: ['assessment', 'guard', 'stats'] },
-  ResultStats: { required: ['questions_asked', 'duration_seconds', 'total_cost_usd', 'mean_turn_latency_ms'] },
+  ResultStats: {
+    required: [
+      'questions_asked',
+      'duration_seconds',
+      'mean_turn_latency_ms',
+      'total_cost_usd',
+      'llm_calls',
+      'prompt_tokens',
+      'completion_tokens',
+      'reasoning_tokens',
+    ],
+  },
   AssessmentResult: {
     required: [
       'triage_level',
@@ -273,6 +284,11 @@ export const KEYS = {
       'turn_latency_p50_ms',
       'turn_latency_p90_ms',
       'mean_cost_usd',
+      'total_cost_usd',
+      'mean_llm_calls',
+      'mean_prompt_tokens',
+      'mean_completion_tokens',
+      'mean_reasoning_tokens',
       'feedback_up',
       'feedback_down',
       'pairwise',
@@ -411,10 +427,16 @@ export function expectResultCard(value: unknown): void {
   const stats = expectExactKeys(card.stats, KEYS.ResultStats.required, [], 'ResultCard.stats')
   expect(typeof stats.questions_asked).toBe('number')
   expect(typeof stats.duration_seconds).toBe('number')
-  expect(stats.total_cost_usd === null || typeof stats.total_cost_usd === 'number').toBe(true)
   expect(stats.mean_turn_latency_ms === null || typeof stats.mean_turn_latency_ms === 'number').toBe(
     true,
   )
+  // v1.2: all five v1.2 stats are nullable numbers, for every caller.
+  for (const key of ['total_cost_usd', 'llm_calls', 'prompt_tokens', 'completion_tokens', 'reasoning_tokens']) {
+    expect(
+      stats[key] === null || typeof stats[key] === 'number',
+      `ResultCard.stats.${key} must be number|null`,
+    ).toBe(true)
+  }
 }
 
 export function expectBackstageTurn(value: unknown): void {

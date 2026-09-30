@@ -52,6 +52,16 @@ and all commits use the `web:` prefix, staging only `web/` paths (D-027). `W-005
 | T5 | Docker Compose smoke (real backend) | ⛔ Blocked — no `backend/.env` / `OPENROUTER_API_KEY` |
 | T6 | Docs and phase-3 report | ✅ Done |
 
+**Phase 3b — Contract v1.2: tokens and cost (D-035, D-039).** T1–T4 ✅ complete (build + lint + **190** tests green). T5 ⛔ blocked: the prerequisite backend phase 2c is not implemented/committed, so the running dev server still serves contract v1.1. See `docs/reports/phase-3b-cost-fields.md`.
+
+| Task | Scope | Status |
+|---|---|---|
+| T1 | v1.2 types, mocks (stats hidden until evaluation, admin always sees them) and integration key sets | ✅ Done |
+| T2 | Result card stats (cost, calls, tokens) rendered only when non-null; `faInteger` | ✅ Done |
+| T3 | Five new admin metric columns (sortable, `null` last) | ✅ Done |
+| T4 | Slow-turn hint after 15 s in the typing bubble (D-039) | ✅ Done |
+| T5 | Integration scenario, browser check and report | ⛔ Blocked — backend v1.1 (§5 of the report) |
+
 ## Verification per task
 
 Every task is checked with:
@@ -64,6 +74,7 @@ npm run test    # vitest run
 
 ## Log
 
+- 2026-09-30 — **Phase 3b** — T1–T4 done, T5 blocked — v1.2 mirrors the contract (`ResultCard.stats` + 4 fields, `MetricsRow` + 5); the mocks mask the five hidden stats at the response boundary (`resultFor`) unless the session is evaluated or the viewer is an admin, and one metrics row in four is `null`. The result card renders the five new stats **only when `typeof value === 'number'`** (no `—`/empty label before evaluation) with «هزینه»/«تعداد فراخوانی مدل»/«توکن ورودی»/«توکن خروجی»/«توکن استدلال» and the new `faInteger`; the admin table gains «هزینه کل» + four mean columns (sortable, `null` last); the typing bubble adds «پاسخ ممکن است تا یک دقیقه طول بکشد.» after 15 s (one `busy`-keyed timer). Browser blindness probes extended (W-044/W-045/W-046). **T5 blocked**: no backend 2c commit/report and the live `:8000` dev server still answers with the v1.1 `stats` (4 keys) and `MetricsRow` (22 keys), so `test:int` fails on the updated key sets by design — evidence in `docs/reports/phase-3b-cost-fields.md §5`. `build` ✅ `lint` ✅ `test` ✅ (190, +10).
 - 2026-09-30 — **Phase 3** — T5/T6 — T5 **blocked**: `backend/.env` does not exist, so there is no real `OPENROUTER_API_KEY`; no real model call was made (USD 0). T6: README covers mock vs real mode, `test:int` and `VITE_API_PROXY_TARGET` (T1); `docs/reports/phase-3-integration.md` written (summary, environment, T2 per scenario 35/35, T3 per step × width 60/60, fixes, no `backend-issue` rows, T5 blocked, known issues, M2 recommendations); `contract-questions.md` notes that phase 3 raised no new questions. **Phase 3 complete** except the blocked docker smoke.
 - 2026-09-30 — **Phase 3** — T4 — Drift check: **no web-side bug or contract drift** was found by T2 or T3 (all key sets, enums, error codes and states matched the real backend; the real `AGENT_ERROR` text is the same Persian string the mocks use). One realism alignment per T4: the runtime/seed mock backstage now emits a `BackstageTurn` for the concluding `result` message as well (real backend: simple session → 3 turns for 2 questions + conclusion), with `next_action: "conclude"` and `stop_reason: "enough_information"` (W-043). `completeSession` appends the result message before building the backstage so the turn can reference it. **Changed tests:** `BackstagePanel.test.tsx` structured 4→5 and simple 3→4 turns, plus a new regression test asserting the concluding turn. `build` ✅ `lint` ✅ `test` ✅ (180, +1).
 - 2026-09-30 — **Phase 3** — T3 — Browser end-to-end pass: new `scripts/qa-browser-phase3.mjs` (CDP, headless Chrome) runs the 8 steps at 1280 and 375 px against the real dev server — **60/60 checks pass, no console errors**. step1 doctor chat→result/backstage sanity→feedback→evaluation (11 validation errors + focus, then summary + reveal); step2 finish + confirm dialog; step3 «خطا» error bubble → `ارسال دوباره` with no duplicated bubble; step4 two-tab 409 toast + text restored; step5 garbage token → `/login`; step6 doctor2 → «دسترسی ندارید»; step7 admin dashboard/group-by/CSV download/reload toast/sessions filters/detail reveal; step8 blindness (16 real needles × 4 routes) → no leaks. 24 screenshots in `docs/reports/phase-3-screenshots/`. **No web-side bug found** (the only failures were in the harness itself, fixed). Next: T5 docker smoke.

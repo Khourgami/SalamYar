@@ -95,6 +95,28 @@ export function revealFor(session: StoredSession, viewer: MockUserRecord): Agent
   return null
 }
 
+/**
+ * v1.2 (D-035) — cost, tokens and call count are `null` for a non-admin caller until the session
+ * is evaluated: they would hint at the model tier and the architecture. Admins always see them.
+ * Only the five hidden fields are masked; the other three stats stay visible.
+ */
+export function resultFor(session: StoredSession, viewer: MockUserRecord): ResultCard | null {
+  const result = session.result
+  if (!result) return null
+  if (isEvaluated(session) || viewer.role === 'admin') return result
+  return {
+    ...result,
+    stats: {
+      ...result.stats,
+      total_cost_usd: null,
+      llm_calls: null,
+      prompt_tokens: null,
+      completion_tokens: null,
+      reasoning_tokens: null,
+    },
+  }
+}
+
 export function feedbackFor(session: StoredSession, userId: string): Feedback[] {
   return session.feedback[userId] ?? []
 }
@@ -142,7 +164,7 @@ export function toDetail(
   return {
     ...toSummary(session),
     messages: session.messages,
-    result: session.result,
+    result: resultFor(session, viewer),
     backstage: session.backstage,
     feedback: options.allUsersFeedback ? allFeedback(session) : feedbackFor(session, viewer.id),
     evaluation: session.evaluation,

@@ -18,8 +18,9 @@
  *   5. 401: garbage token → redirect to /login
  *   6. 403: doctor2 on doctor's session → «دسترسی ندارید»
  *   7. admin: dashboard, group-by, CSV download, reload toast, sessions list + detail
- *   8. blindness: real agent ids + model slugs fetched through the admin API are absent from the
- *      DOM of /, an active chat, a completed-unevaluated session and /history
+ *   8. blindness: real agent ids + model slugs fetched through the admin API, the five v1.2
+ *      cost/token stat labels and any `$` amount are absent from the DOM of /, an active chat, a
+ *      completed-unevaluated session and /history (D-035)
  * One screenshot per step per width is written to docs/reports/phase-3-screenshots/.
  *
  * Usage: node scripts/qa-browser-phase3.mjs [--base http://localhost:5174]
@@ -231,9 +232,17 @@ const saneProbe = `(() => {
   }
 })()`
 
+/**
+ * v1.2 (D-035): besides the agent/model needles, the probe scans the app root for a formatted
+ * dollar amount — a leaked cost would render as one. Only the app root is scanned for that
+ * pattern so Vite's injected dev scripts cannot produce a false positive.
+ */
 const blindnessProbe = (needles) => `(() => {
   const html = document.documentElement.outerHTML
-  return { leaks: ${JSON.stringify(needles)}.filter((needle) => html.includes(needle)) }
+  const rootHtml = (document.getElementById('root') || document.documentElement).outerHTML
+  const leaks = ${JSON.stringify(needles)}.filter((needle) => html.includes(needle))
+  if (/\\$\\s?\\d/.test(rootHtml)) leaks.push('$<amount>')
+  return { leaks }
 })()`
 
 /* ------------------------------------------------------------------ */
@@ -335,7 +344,16 @@ async function fetchNeedles(page) {
       get('/api/v1/admin/sessions?limit=50'),
       get('/api/v1/admin/metrics?group_by=model'),
     ])
-    const needles = new Set(['simple', 'structured'])
+    const needles = new Set([
+      'simple',
+      'structured',
+      // v1.2 (D-035): the five cost/token stats must not leak to an evaluator before evaluation.
+      'هزینه',
+      'تعداد فراخوانی مدل',
+      'توکن ورودی',
+      'توکن خروجی',
+      'توکن استدلال',
+    ])
     for (const agent of agents) needles.add(agent.id)
     for (const item of sessions.items) needles.add(item.agent_reveal.model)
     for (const row of metrics.rows) {
