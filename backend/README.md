@@ -83,8 +83,8 @@ Run it before physicians are onboarded (it needs `OPENROUTER_API_KEY` in `.env`,
 costs real money):
 
 ```powershell
-uv run python -m app.cli smoke-test --include-disabled --json data/smoke-run1.json   # all 12 agents
-uv run python -m app.cli smoke-test --agent b-sonnet5                                # one agent
+uv run python -m app.cli smoke-test --include-disabled --json data/smoke-run1.json   # all 14 agents
+uv run python -m app.cli smoke-test --agent b-sonnet55                               # one agent
 ```
 
 If a provider rejects a parameter, the fix is a per-model config change in `config/agents.yaml`

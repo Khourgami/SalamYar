@@ -279,7 +279,7 @@ def test_list_agents(agents_file: str, capsys: pytest.CaptureFixture) -> None:
 
 def test_list_agents_repo_config(capsys: pytest.CaptureFixture) -> None:
     assert cli.main(["list-agents"]) == 0
-    assert len(capsys.readouterr().out.splitlines()) == 13
+    assert len(capsys.readouterr().out.splitlines()) == 15  # header + 14 agents
 
 
 def test_list_agents_invalid_config(tmp_path: Path, capsys: pytest.CaptureFixture) -> None:

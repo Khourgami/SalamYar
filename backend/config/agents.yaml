@@ -1,7 +1,7 @@
 # Agent registry — Agent = Architecture × LLM × Config (BACKEND_ARCHITECTURE §8).
 # Every agent inherits `defaults`; any key (including nested `options`) can be overridden per agent.
 # Extra per-agent flag: `send_temperature: false` omits temperature for models that reject it.
-# Model slugs were checked against OpenRouter `GET /models` (2026-09-30); `uv run python -m app.cli smoke-test` re-checks them.
+# Model slugs were checked against OpenRouter `GET /models` (2026-09-30; D-034 set re-checked in phase 2b-2); `uv run python -m app.cli smoke-test` re-checks them.
 
 defaults:
   temperature: 0.3
@@ -21,11 +21,11 @@ agents:
     architecture: structured
     model: google/gemini-3-flash-preview  # D-022: confirmed in OpenRouter /models on 2026-09-30
     enabled: true
-  - id: a-sonnet5
+  - id: a-sonnet55  # D-034: was a-sonnet5
     display_name: "دکتر ۲"
     description: null
     architecture: simple
-    model: anthropic/claude-sonnet-5
+    model: anthropic/claude-sonnet-5.5  # D-034
     enabled: true
   - id: b-gpt54
     display_name: "دکتر ۳"
@@ -37,7 +37,9 @@ agents:
     display_name: "دکتر ۴"
     description: null
     architecture: structured
-    model: deepseek/deepseek-v4-pro
+    model: deepseek/deepseek-v4-pro-0813  # D-034
+    reasoning_effort: minimal  # D-036
+    max_tokens: 8000  # D-036
     enabled: true
   - id: a-gpt54
     display_name: "دکتر ۵"
@@ -45,17 +47,17 @@ agents:
     architecture: simple
     model: openai/gpt-5.4
     enabled: true
-  - id: b-sonnet5
+  - id: b-sonnet55  # D-034: was b-sonnet5
     display_name: "دکتر ۶"
     description: null
     architecture: structured
-    model: anthropic/claude-sonnet-5
+    model: anthropic/claude-sonnet-5.5  # D-034
     enabled: true
-  - id: b-gpt5mini
+  - id: b-gpt54mini  # D-034: was b-gpt5mini
     display_name: "دکتر ۷"
     description: null
     architecture: structured
-    model: openai/gpt-5-mini
+    model: openai/gpt-5.4-mini  # D-034
     enabled: true
   - id: b-gemini31pro
     display_name: "دکتر ۸"
@@ -73,17 +75,31 @@ agents:
     display_name: "دکتر ۱۰"
     description: null
     architecture: simple
-    model: deepseek/deepseek-v4-pro
+    model: deepseek/deepseek-v4-pro-0813  # D-034
+    reasoning_effort: minimal  # D-036
+    max_tokens: 8000  # D-036
     enabled: false
-  - id: a-gpt5mini
+  - id: a-gpt54mini  # D-034: was a-gpt5mini
     display_name: "دکتر ۱۱"
     description: null
     architecture: simple
-    model: openai/gpt-5-mini
+    model: openai/gpt-5.4-mini  # D-034
     enabled: false
   - id: a-gemini31pro
     display_name: "دکتر ۱۲"
     description: null
     architecture: simple
     model: google/gemini-3.1-pro-preview  # D-022: confirmed in OpenRouter /models on 2026-09-30
+    enabled: false
+  - id: b-gptoss120b  # D-034: new agent
+    display_name: "دکتر ۱۳"
+    description: null
+    architecture: structured
+    model: openai/gpt-oss-120b  # D-034
+    enabled: true
+  - id: a-gptoss120b  # D-034: new agent
+    display_name: "دکتر ۱۴"
+    description: null
+    architecture: simple
+    model: openai/gpt-oss-120b  # D-034
     enabled: false

@@ -40,32 +40,68 @@ def _yaml(*agents: tuple[str, str, str, bool, str]) -> str:
     return BASE.format(agents=body)
 
 
+REPO_TABLE = [  # BACKEND_ARCHITECTURE §8 (D-022, D-034)
+    ("b-gemini3flash", "دکتر ۱", "structured", "google/gemini-3-flash-preview", True),
+    ("a-sonnet55", "دکتر ۲", "simple", "anthropic/claude-sonnet-5.5", True),
+    ("b-gpt54", "دکتر ۳", "structured", "openai/gpt-5.4", True),
+    ("b-deepseekv4pro", "دکتر ۴", "structured", "deepseek/deepseek-v4-pro-0813", True),
+    ("a-gpt54", "دکتر ۵", "simple", "openai/gpt-5.4", True),
+    ("b-sonnet55", "دکتر ۶", "structured", "anthropic/claude-sonnet-5.5", True),
+    ("b-gpt54mini", "دکتر ۷", "structured", "openai/gpt-5.4-mini", True),
+    ("b-gemini31pro", "دکتر ۸", "structured", "google/gemini-3.1-pro-preview", True),
+    ("a-gemini3flash", "دکتر ۹", "simple", "google/gemini-3-flash-preview", False),
+    ("a-deepseekv4pro", "دکتر ۱۰", "simple", "deepseek/deepseek-v4-pro-0813", False),
+    ("a-gpt54mini", "دکتر ۱۱", "simple", "openai/gpt-5.4-mini", False),
+    ("a-gemini31pro", "دکتر ۱۲", "simple", "google/gemini-3.1-pro-preview", False),
+    ("b-gptoss120b", "دکتر ۱۳", "structured", "openai/gpt-oss-120b", True),
+    ("a-gptoss120b", "دکتر ۱۴", "simple", "openai/gpt-oss-120b", False),
+]
+DEEPSEEK_IDS = {"b-deepseekv4pro", "a-deepseekv4pro"}
+RETIRED_IDS = ("b-sonnet5", "a-sonnet5", "b-gpt5mini", "a-gpt5mini")  # D-034
+
+
 def test_repo_config_is_valid_and_matches_table() -> None:
     agents = parse_agents(REPO_CONFIG.read_text(encoding="utf-8"))
-    expected = [
-        ("b-gemini3flash", "دکتر ۱", "structured", "google/gemini-3-flash-preview", True),
-        ("a-sonnet5", "دکتر ۲", "simple", "anthropic/claude-sonnet-5", True),
-        ("b-gpt54", "دکتر ۳", "structured", "openai/gpt-5.4", True),
-        ("b-deepseekv4pro", "دکتر ۴", "structured", "deepseek/deepseek-v4-pro", True),
-        ("a-gpt54", "دکتر ۵", "simple", "openai/gpt-5.4", True),
-        ("b-sonnet5", "دکتر ۶", "structured", "anthropic/claude-sonnet-5", True),
-        ("b-gpt5mini", "دکتر ۷", "structured", "openai/gpt-5-mini", True),
-        ("b-gemini31pro", "دکتر ۸", "structured", "google/gemini-3.1-pro-preview", True),
-        ("a-gemini3flash", "دکتر ۹", "simple", "google/gemini-3-flash-preview", False),
-        ("a-deepseekv4pro", "دکتر ۱۰", "simple", "deepseek/deepseek-v4-pro", False),
-        ("a-gpt5mini", "دکتر ۱۱", "simple", "openai/gpt-5-mini", False),
-        ("a-gemini31pro", "دکتر ۱۲", "simple", "google/gemini-3.1-pro-preview", False),
-    ]
     got = [(a.id, a.display_name, a.architecture, a.model, a.enabled) for a in agents.values()]
-    assert got == expected
+    assert got == REPO_TABLE
+    assert len(agents) == 14
+    assert sum(a.enabled for a in agents.values()) == 9
+    assert len({a.display_name for a in agents.values()}) == 14
     for a in agents.values():
         assert a.description is None
-        assert a.temperature == 0.3 and a.reasoning_effort == "low" and a.max_tokens == 4000
+        assert a.temperature == 0.3
+        if a.id in DEEPSEEK_IDS:  # D-036
+            assert a.reasoning_effort == "minimal" and a.max_tokens == 8000
+        else:
+            assert a.reasoning_effort == "low" and a.max_tokens == 4000
         assert a.output_mode == "json_object" and a.prompt_version == "v1"
         assert a.send_temperature is True
         assert a.options.max_questions == 12
         assert a.options.safety_floor is True
         assert a.options.emergency_threshold == 0.20
+
+
+def test_repo_config_retires_old_ids_on_sync(db: Session) -> None:
+    for old in RETIRED_IDS:  # rows as left by the previous model set
+        db.add(
+            Agent(
+                id=old,
+                display_name=f"old {old}",
+                architecture="simple",
+                model="x/old",
+                config_json="{}",
+                enabled=True,
+            )
+        )
+    db.commit()
+    reg = Registry(REPO_CONFIG)
+    reg.load()
+    reg.sync_to_db(db)
+    rows = {a.id: a for a in db.query(Agent).all()}
+    assert len(rows) == 18
+    for old in RETIRED_IDS:
+        assert rows[old].enabled is False
+    assert {i for i, r in rows.items() if r.enabled} == {row[0] for row in REPO_TABLE if row[4]}
 
 
 def test_override_merge() -> None:
