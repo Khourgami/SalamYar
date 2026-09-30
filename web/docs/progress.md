@@ -41,7 +41,7 @@ See `docs/reports/phase-1-web-mock.md`.
 The repository now exists at the project root (`git rev-parse --show-toplevel` = the project root)
 and all commits use the `web:` prefix, staging only `web/` paths (D-027). `W-005` is superseded.
 
-**Phase 3 — Integration with the real backend.** 🚧 In progress (T1–T6). See `docs/reports/phase-3-integration.md`.
+**Phase 3 — Integration with the real backend.** ✅ Complete except T5, which is blocked (no `backend/.env`). See `docs/reports/phase-3-integration.md`.
 
 | Task | Scope | Status |
 |---|---|---|
@@ -49,8 +49,8 @@ and all commits use the `web:` prefix, staging only `web/` paths (D-027). `W-005
 | T2 | Contract conformance suite (`src/integration/`, `npm run test:int`) | ✅ Done (35/35) |
 | T3 | Browser end-to-end pass at 1280/375 px + screenshots | ✅ Done (60/60) |
 | T4 | Fix web-side drift + regression tests | ✅ Done (no drift; fixtures aligned) |
-| T5 | Docker Compose smoke (real backend) | ⏳ Pending |
-| T6 | Docs and phase-3 report | ⏳ Pending |
+| T5 | Docker Compose smoke (real backend) | ⛔ Blocked — no `backend/.env` / `OPENROUTER_API_KEY` |
+| T6 | Docs and phase-3 report | ✅ Done |
 
 ## Verification per task
 
@@ -64,6 +64,7 @@ npm run test    # vitest run
 
 ## Log
 
+- 2026-09-30 — **Phase 3** — T5/T6 — T5 **blocked**: `backend/.env` does not exist, so there is no real `OPENROUTER_API_KEY`; no real model call was made (USD 0). T6: README covers mock vs real mode, `test:int` and `VITE_API_PROXY_TARGET` (T1); `docs/reports/phase-3-integration.md` written (summary, environment, T2 per scenario 35/35, T3 per step × width 60/60, fixes, no `backend-issue` rows, T5 blocked, known issues, M2 recommendations); `contract-questions.md` notes that phase 3 raised no new questions. **Phase 3 complete** except the blocked docker smoke.
 - 2026-09-30 — **Phase 3** — T4 — Drift check: **no web-side bug or contract drift** was found by T2 or T3 (all key sets, enums, error codes and states matched the real backend; the real `AGENT_ERROR` text is the same Persian string the mocks use). One realism alignment per T4: the runtime/seed mock backstage now emits a `BackstageTurn` for the concluding `result` message as well (real backend: simple session → 3 turns for 2 questions + conclusion), with `next_action: "conclude"` and `stop_reason: "enough_information"` (W-043). `completeSession` appends the result message before building the backstage so the turn can reference it. **Changed tests:** `BackstagePanel.test.tsx` structured 4→5 and simple 3→4 turns, plus a new regression test asserting the concluding turn. `build` ✅ `lint` ✅ `test` ✅ (180, +1).
 - 2026-09-30 — **Phase 3** — T3 — Browser end-to-end pass: new `scripts/qa-browser-phase3.mjs` (CDP, headless Chrome) runs the 8 steps at 1280 and 375 px against the real dev server — **60/60 checks pass, no console errors**. step1 doctor chat→result/backstage sanity→feedback→evaluation (11 validation errors + focus, then summary + reveal); step2 finish + confirm dialog; step3 «خطا» error bubble → `ارسال دوباره` with no duplicated bubble; step4 two-tab 409 toast + text restored; step5 garbage token → `/login`; step6 doctor2 → «دسترسی ندارید»; step7 admin dashboard/group-by/CSV download/reload toast/sessions filters/detail reveal; step8 blindness (16 real needles × 4 routes) → no leaks. 24 screenshots in `docs/reports/phase-3-screenshots/`. **No web-side bug found** (the only failures were in the harness itself, fixed). Next: T5 docker smoke.
 - 2026-09-30 — **Phase 3** — T2 — Contract conformance suite: `src/integration/` (node environment) with `helpers.ts` (`request`, `expectExactKeys`, hand-written key sets from `API_CONTRACT §2`, composite validators, session/evaluation helpers) and six spec files covering all 15 scenarios: auth + agents; session create/complete/finish/409/502+resend; feedback CRUD + evaluation locking + comparison; ownership; both lists; metrics + CSV export + reload. **35 tests pass** against `uv run python -m app.dev_server --seed --delay-ms 800`. No backend discrepancy found — every key set, enum, error code and status matched the contract; no `backend-issue` rows. One web-side helper bug found and fixed: `Response.text()` strips the UTF-8 BOM, so the CSV check reads raw bytes (W-042). `npm run test` (179) stays green and the suite is excluded from it. Next: T3 browser pass.
