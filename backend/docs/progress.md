@@ -3,6 +3,24 @@
 Updated by the backend coder at the end of every task.
 
 ## Current status
+**Phase 2d — M3 readiness (provider trace, cached tokens, open-weight provider selection): ✅ complete (2026-09-30).** Report: `reports/phase-2d-m3-readiness.md`.
+
+- 384 tests pass; guard 100% line+branch; ruff clean. Spend USD 0.184 of 1.50 (`/key` usage 1.7810 → 1.9654).
+- **M3 agent set: 9 enabled** — the 8 from 2b-2 plus `b-gptoss120b` (re-gated with provider Cerebras: p50 3.4 s, max 3.9 s; B-055).
+- Provider pins (D-041): gpt-oss-120b → `cerebras/fp16` (B-053); DeepSeek 0813 → `coreweave/fp8`, p50 15.1 s vs 29.6 s (B-054). Together (p50 5.9 s) excluded because it returns no reasoning tokens — **product owner to confirm**.
+- Every call stores its serving provider and cached prompt tokens; cache-read prices for 6 models; `cost-report --by provider`.
+- **Action needed:** databases from before 2d are refused (new columns). Start M3 with `init-qa` (README); rotate the key and `JWT_SECRET` first.
+- Next: M3 QA per `docs/qa/M3-qa-protocol.md`.
+
+| Task | Scope | Status |
+|---|---|---|
+| T1 | Serving provider per call, smoke column, `cost-report --by provider` | ✅ Done (B-048, B-051) |
+| T2 | Cached prompt tokens, cache-read prices, estimate | ✅ Done (B-049, B-050); offline 2b-2 re-comparison not possible (no cached field) |
+| T3 | Provider selection for gpt-oss-120b and DeepSeek, re-gate | ✅ Done (B-053 … B-055) |
+| T4 | `init-qa` fresh M3 database helper | ✅ Done (B-052) |
+| T5 | Report, README, progress, decisions | ✅ Done |
+
+## Phase 2c status
 **Phase 2c — Token and cost accounting (contract v1.2): ✅ complete (2026-09-30).** Report: `reports/phase-2c-cost-accounting.md`.
 
 - 358 tests pass; coverage 99% (`app/`), guard 100% line+branch; ruff clean. API spend USD 0 (public `/models` only).
@@ -146,3 +164,7 @@ Per task: `uv run pytest -q` + `uv run ruff check .`, update this file, commit (
 - 2026-09-30 — Phase 2c T4 — `cost-report --by session|agent|model|architecture --status completed|all --csv --db` (DB only, no key; `>15%` flag; CSV = table cells, BOM); README section, pricing and schema-v1.2 notes; dev server prints the schema error cleanly (B-046). 10 new tests — 356 tests pass
 - 2026-09-30 — Phase 2c T5 — DemoLLM fixed usage (1500/300/60, USD 0.002) + 2 tests; old `data/dev.db` refused by the schema check but **could not be deleted** (held by a running dev server on :8000, not stopped); check ran on new `data/dev-2c.db` (:8765, deleted afterwards): unevaluated sessions show `null` usage in TurnResponse, `/finish` and GET; evaluated shows values; admin always; `/admin/metrics` new fields; `cost-report --by session` OK (B-047) — 358 tests pass
 - 2026-09-30 — Phase 2c T6 — report `reports/phase-2c-cost-accounting.md` (prices, reasoning finding, estimated cost per triage per agent from the 2b-2 smoke runs, API changes, schema check), README, progress, decisions — 358 tests pass, guard 100%, ruff clean
+- 2026-09-30 — Phase 2d T1/T2 — top-level `provider` of the OpenRouter response (verified with a real call) → `llm_calls.provider`; `usage.prompt_tokens_details.cached_tokens` → `llm_calls.cached_prompt_tokens`, `sessions.total_cached_prompt_tokens`; optional `input_cache_read_per_mtok` (6 models from `/models`) used by the estimate; smoke `provider` column + JSON fields; `cost-report --by provider` + cached columns; schema message "older than the current schema"; offline 2b-2 re-comparison not possible (no cached field in the stored JSON) (B-048 … B-051) — 376 tests pass
+- 2026-09-30 — Phase 2d T4 — `init-qa --admin --evaluator [--force] [--db] [--config]` (validate first, archive to `<db dir>/archive/<timestamp>/`, schema, agents, two users, prints enabled agents); README with PowerShell and compose examples; PowerShell pipe verified on a scratch path, not on `data/lab.db` (B-052) — 384 tests pass
+- 2026-09-30 — Phase 2d T3 — endpoints listing + serving probe under `deny` (USD 0.004); 16 gpt-oss runs (4 candidates × 2 agents × 2) and 6 DeepSeek runs; pins gpt-oss → Cerebras (p50 3.4 s), DeepSeek → CoreWeave (15.1 s; Together excluded, 0 reasoning tokens); `b-gptoss120b` re-gated and enabled (9 agents); `a-gptoss120b` stays disabled (B-053 … B-055) — 384 tests pass
+- 2026-09-30 — Phase 2d T5 — report `reports/phase-2d-m3-readiness.md`, README, progress, decisions; total spend USD 0.184 — 384 tests pass, guard 100%, ruff clean
