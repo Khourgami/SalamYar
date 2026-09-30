@@ -3,7 +3,12 @@
 Updated by the backend coder at the end of every task.
 
 ## Current status
-**Phase 2c — Token and cost accounting (contract v1.2): in progress.**
+**Phase 2c — Token and cost accounting (contract v1.2): ✅ complete (2026-09-30).** Report: `reports/phase-2c-cost-accounting.md`.
+
+- 358 tests pass; coverage 99% (`app/`), guard 100% line+branch; ruff clean. API spend USD 0 (public `/models` only).
+- Prices for 7 models in `agents.yaml` (B-042); reasoning tokens are inside `completion_tokens` (B-043).
+- **Action needed:** the dev server running on :8000 uses the pre-v1.2 `data/dev.db`; stop it and delete `data/dev.db*` before its next start (schema check, B-047). Same for any old `data/lab.db*`.
+- Next: M3 QA with the 8 enabled agents; afterwards `cost-report --by agent` for the real cost per triage.
 
 | Task | Scope | Status |
 |---|---|---|
@@ -11,8 +16,8 @@ Updated by the backend coder at the end of every task.
 | T2 | Per-call estimate, session totals, schema check | ✅ Done (B-043, B-044) |
 | T3 | API fields and blindness (contract v1.2), metrics, CSV | ✅ Done (B-045) |
 | T4 | `cost-report` CLI | ✅ Done (B-046) |
-| T5 | Dev server + DemoLLM verification | ⏳ |
-| T6 | Report | ⏳ |
+| T5 | Dev server + DemoLLM verification | ✅ Done (B-047) |
+| T6 | Report | ✅ Done |
 
 ## Phase 2b-2 status
 **Phase 2b-2 — Final model set, turn deadline, M3 gate: ✅ complete (2026-09-30).** Report: `reports/phase-2b2-model-set.md`.
@@ -139,3 +144,5 @@ Per task: `uv run pytest -q` + `uv run ruff check .`, update this file, commit (
 - 2026-09-30 — Phase 2c T2 — reasoning-token finding from the 2b/2b-2 traces: `completion_tokens` includes reasoning for every model where it is observable (B-043); `llm_calls` price snapshot + `estimated_cost_usd`, `sessions` call count and token/estimate totals refreshed after every attempt; `init_db` schema check fails fast on pre-v1.2 files (B-044). 7 new tests — 340 tests pass
 - 2026-09-30 — Phase 2c T3 — `ResultStats` v1.2 fields, blindness via `usage_visible` in the single `ResultCard` builder, `MetricsRow` `total_cost_usd` + 4 means, CSV columns verified; `test_sessions` stats key set updated (evaluator now sees `total_cost_usd: null` before evaluation) (B-045). 6 new tests — 346 tests pass
 - 2026-09-30 — Phase 2c T4 — `cost-report --by session|agent|model|architecture --status completed|all --csv --db` (DB only, no key; `>15%` flag; CSV = table cells, BOM); README section, pricing and schema-v1.2 notes; dev server prints the schema error cleanly (B-046). 10 new tests — 356 tests pass
+- 2026-09-30 — Phase 2c T5 — DemoLLM fixed usage (1500/300/60, USD 0.002) + 2 tests; old `data/dev.db` refused by the schema check but **could not be deleted** (held by a running dev server on :8000, not stopped); check ran on new `data/dev-2c.db` (:8765, deleted afterwards): unevaluated sessions show `null` usage in TurnResponse, `/finish` and GET; evaluated shows values; admin always; `/admin/metrics` new fields; `cost-report --by session` OK (B-047) — 358 tests pass
+- 2026-09-30 — Phase 2c T6 — report `reports/phase-2c-cost-accounting.md` (prices, reasoning finding, estimated cost per triage per agent from the 2b-2 smoke runs, API changes, schema check), README, progress, decisions — 358 tests pass, guard 100%, ruff clean

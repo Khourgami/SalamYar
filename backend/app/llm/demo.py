@@ -25,6 +25,12 @@ INVALID_OUTPUT = "demo: deliberately invalid output (failure trigger «خطا»)
 
 current_session_id: ContextVar[str] = ContextVar("demo_session_id", default="")
 
+# Fixed, plausible usage per call (phase 2c T5) so tokens and cost show up end to end.
+DEMO_PROMPT_TOKENS = 1500
+DEMO_COMPLETION_TOKENS = 300
+DEMO_REASONING_TOKENS = 60  # part of the completion tokens, as with the real providers (B-043)
+DEMO_COST_USD = 0.002
+
 _HYPOTHESIS = {
     "name_fa": "سردرد تنشی",
     "name_en": "Tension-type headache",
@@ -118,10 +124,10 @@ class DemoLLM:
         return LLMResponse(
             text=text,
             model_reported=f"demo/{req.model}",
-            prompt_tokens=0,
-            completion_tokens=0,
-            reasoning_tokens=None,
-            cost_usd=0.0,
+            prompt_tokens=DEMO_PROMPT_TOKENS,
+            completion_tokens=DEMO_COMPLETION_TOKENS,
+            reasoning_tokens=DEMO_REASONING_TOKENS,
+            cost_usd=DEMO_COST_USD,
             latency_ms=1,
             raw={"demo": True},
         )
