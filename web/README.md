@@ -17,8 +17,9 @@ Persian (RTL) React 18 frontend for the AI Triage Agent Lab PoC. It is built aga
 | `npm run build` | Type-check (`tsc -b`) + production build into `dist/` |
 | `npm run preview` | Serve the built `dist/` locally |
 | `npm run lint` | ESLint (flat config, zero warnings policy) |
-| `npm run test` | Vitest + React Testing Library (single run) |
+| `npm run test` | Vitest + React Testing Library (single run, mocks in-memory) |
 | `npm run test:watch` | Vitest in watch mode |
+| `npm run test:int` | Contract-conformance suite against a **live backend** (`INTEGRATION_API_URL`) |
 
 ## Environment
 
@@ -27,6 +28,7 @@ Copy `.env.example` to `.env`:
 ```
 VITE_API_BASE_URL=/api/v1
 VITE_USE_MOCKS=true
+VITE_API_PROXY_TARGET=http://localhost:8000
 ```
 
 - `VITE_API_BASE_URL` is always relative (`/api/v1`). Vite proxies it in development and nginx
@@ -34,6 +36,9 @@ VITE_USE_MOCKS=true
 - `VITE_USE_MOCKS=true` starts the MSW worker in `src/main.tsx` and intercepts every `/api/v1`
   request, so the app is fully usable without the backend. Set it to `false` to talk to the real
   backend. No secret ever lives in the frontend.
+- `VITE_API_PROXY_TARGET` sets where the Vite **dev server** proxies `/api` (default
+  `http://localhost:8000`). Change it to point `npm run dev` at a backend on another port; it is
+  ignored by production builds (nginx uses `API_UPSTREAM` instead).
 - Browser mocks need `public/mockServiceWorker.js` (committed). If it is ever missing,
   `npm run dev` logs an MSW error and the app boots without mocks instead of going blank —
   regenerate the file with `npx msw init public/ --save`.
@@ -44,6 +49,25 @@ Mock users:
 |---|---|---|
 | `doctor` | `doctor123` | evaluator |
 | `admin` | `admin123` | admin |
+
+## Real backend mode
+
+Set `VITE_USE_MOCKS=false` in `.env` and run the backend dev server (offline `DemoLLM`, no API cost):
+
+```
+# from backend/
+uv run python -m app.dev_server --seed
+```
+
+Then `npm run dev` logs in through the Vite proxy as `doctor`/`doctor123`, `doctor2`/`doctor123` or
+`admin`/`admin123`. The dev server seeds the same users as the mocks (see `backend/README.md`).
+
+`npm run test:int` (node environment) checks the API contract against that server. Point it at
+another host with `INTEGRATION_API_URL`:
+
+```
+INTEGRATION_API_URL=http://localhost:8001/api/v1 npm run test:int
+```
 
 ## Mock mode
 
@@ -99,7 +123,9 @@ src/
 
 ## Tests
 
-`npm run test` runs Vitest + React Testing Library against `msw/node` (128 tests): the API client
+`npm run test` runs Vitest + React Testing Library against `msw/node` (fast, no network). `npm run
+test:int` runs the contract-conformance suite in a node environment against a live backend and is
+excluded from `npm run test`. The unit suite covers: the API client
 (auth header, `ApiError` + 502 body, timeout, 401 logout), every mock handler, the Persian label
 maps and formatters, the shell and route guards, the doctors list, the chat states (send, typing,
 disabled, 409, 502 + resend, finish, feedback), the result card with and without the safety-floor

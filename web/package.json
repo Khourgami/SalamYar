@@ -11,6 +11,7 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:int": "vitest run --config vitest.integration.config.ts",
     "check:no-msw": "node scripts/check-no-msw.mjs"
   },
   "dependencies": {

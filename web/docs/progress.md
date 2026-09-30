@@ -41,6 +41,17 @@ See `docs/reports/phase-1-web-mock.md`.
 The repository now exists at the project root (`git rev-parse --show-toplevel` = the project root)
 and all commits use the `web:` prefix, staging only `web/` paths (D-027). `W-005` is superseded.
 
+**Phase 3 — Integration with the real backend.** 🚧 In progress (T1–T6). See `docs/reports/phase-3-integration.md`.
+
+| Task | Scope | Status |
+|---|---|---|
+| T1 | Environment (dev server, `VITE_USE_MOCKS=false`, `VITE_API_PROXY_TARGET`, Phase 3 table) | 🚧 In progress |
+| T2 | Contract conformance suite (`src/integration/`, `npm run test:int`) | ⏳ Pending |
+| T3 | Browser end-to-end pass at 1280/375 px + screenshots | ⏳ Pending |
+| T4 | Fix web-side drift + regression tests | ⏳ Pending |
+| T5 | Docker Compose smoke (real backend) | ⏳ Pending |
+| T6 | Docs and phase-3 report | ⏳ Pending |
+
 ## Verification per task
 
 Every task is checked with:

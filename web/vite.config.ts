@@ -1,7 +1,9 @@
 import { fileURLToPath, URL } from 'node:url'
 import { loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
-import { defineConfig } from 'vitest/config'
+import { configDefaults, defineConfig } from 'vitest/config'
+
+import { resolveApiProxyTarget } from './src/config/env'
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
@@ -32,7 +34,8 @@ export default defineConfig(({ mode }) => {
       port: 5173,
       proxy: {
         '/api': {
-          target: 'http://localhost:8000',
+          // Configurable so integration work can point the dev server at another backend port (W-041).
+          target: resolveApiProxyTarget(env.VITE_API_PROXY_TARGET),
           changeOrigin: true,
         },
       },
@@ -43,6 +46,9 @@ export default defineConfig(({ mode }) => {
       setupFiles: ['./src/test/setup.ts'],
       css: false,
       include: ['src/**/*.{test,spec}.{ts,tsx}'],
+      // `test:int` (contract conformance against a live backend) is a separate, node-environment
+      // suite; keep it out of the fast jsdom unit run.
+      exclude: [...configDefaults.exclude, 'src/integration/**'],
       restoreMocks: true,
       unstubGlobals: true,
       unstubEnvs: true,
