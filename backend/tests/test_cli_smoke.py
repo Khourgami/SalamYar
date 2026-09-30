@@ -6,7 +6,7 @@ import pytest
 
 from app import cli
 from app.agents.config import AgentConfig
-from app.llm.client import LLMError
+from app.llm.client import LLMError, LLMResponse
 from app.llm.fake import FakeLLM
 from app.smoke import (
     JSON_TEXT_LIMIT,
@@ -376,3 +376,64 @@ def test_smoke_cli_models_endpoint_failure(
     monkeypatch.setattr("app.smoke.fetch_model_ids", boom)
     assert cli.main(["smoke-test", "--config", agents_file]) == 2
     assert "cannot list models" in capsys.readouterr().err
+
+
+# --- phase 2d T1: serving provider in the table and the JSON -------------------------------
+
+
+def _pr(text: str, provider: str | None, cached: int | None = None) -> LLMResponse:
+
+    return LLMResponse(
+        text=text,
+        model_reported="m/x",
+        prompt_tokens=100,
+        completion_tokens=50,
+        reasoning_tokens=None,
+        cost_usd=0.001,
+        latency_ms=5,
+        raw={},
+        provider=provider,
+        cached_prompt_tokens=cached,
+    )
+
+
+async def test_provider_column_and_json_per_call() -> None:
+    from app.smoke import format_providers
+
+    # structured: turn1 = repair (last call Cerebras), turn2, conclude = assessment by Crusoe
+    llm = FakeLLM(
+        [
+            _pr("bad", "DeepInfra"),
+            _pr(B_ASK, "Cerebras", cached=64),
+            _pr(B_ASK, "Cerebras"),
+            _pr(ASSESSMENT, "Crusoe"),
+        ]
+    )
+    cfg = _cfg("structured").model_copy(update={"provider_order": ["cerebras"]})
+    res = await run_agent(cfg, llm)
+    assert res.ok
+    assert res.step_providers == {"turn1": "Cerebras", "turn2": "Cerebras", "conclude": "Crusoe"}
+    assert format_providers(res) == "Cerebras/Cerebras/Crusoe"
+    table = format_table([res])
+    assert "provider" in table.splitlines()[0] and "Cerebras/Cerebras/Crusoe" in table
+    data = result_to_dict(res)
+    assert data["provider_order"] == ["cerebras"]
+    assert data["step_providers"]["conclude"] == "Crusoe"
+    assert [c["provider"] for c in data["calls"]] == ["DeepInfra", "Cerebras", "Cerebras", "Crusoe"]
+    assert [c["cached_prompt_tokens"] for c in data["calls"]] == [None, 64, None, None]
+
+
+async def test_provider_column_collapses_and_handles_missing() -> None:
+    from app.smoke import format_providers
+
+    same = await run_agent(
+        _cfg("simple"), FakeLLM([_pr(ASK, "Groq")] * 2 + [_pr(CONCLUDE, "Groq")])
+    )
+    assert format_providers(same) == "Groq"
+    none = await run_agent(_cfg("simple"), FakeLLM([ASK, ASK, CONCLUDE]))  # no provider field
+    assert format_providers(none) == "-"
+    failed = await run_agent(_cfg("simple"), FakeLLM([_pr(ASK, "Groq"), LLMError("down")]))
+    assert failed.step_providers == {"turn1": "Groq", "turn2": None}
+    assert format_providers(failed) == "Groq/-"
+    missing = SmokeResult(agent_id="x", model="m", model_found=False)
+    assert format_providers(missing) == "-"

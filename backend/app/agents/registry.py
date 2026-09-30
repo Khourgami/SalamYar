@@ -3,10 +3,10 @@
 import copy
 import logging
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
 import yaml
-from pydantic import BaseModel, ConfigDict, ValidationError
+from pydantic import BaseModel, ConfigDict, StringConstraints, ValidationError
 from sqlalchemy.orm import Session
 
 from app.agents.config import AgentConfig, ModelPricing
@@ -21,11 +21,18 @@ class RegistryError(ValueError):
     pass
 
 
+# D-041: only these open-weight models are served by several providers and may pin the routing
+PROVIDER_ORDER_MODELS = frozenset({"openai/gpt-oss-120b", "deepseek/deepseek-v4-pro-0813"})
+# keys that the registry fills from a top-level map and that must not be set per agent/default
+_TOP_LEVEL_ONLY = ("pricing", "provider_order")
+
+
 class _AgentsFile(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     defaults: dict[str, Any] = {}
     pricing: dict[str, ModelPricing] = {}
+    provider_order: dict[str, list[Annotated[str, StringConstraints(min_length=1)]]] = {}
     agents: list[dict[str, Any]]
 
 
@@ -50,16 +57,26 @@ def parse_agents(text: str) -> dict[str, AgentConfig]:
     except ValidationError as exc:
         raise RegistryError(f"invalid agents file: {exc}") from exc
 
-    if "pricing" in doc.defaults:
-        raise RegistryError("'pricing' is a top-level map keyed by model, not a default")
+    for key in _TOP_LEVEL_ONLY:
+        if key in doc.defaults:
+            raise RegistryError(f"'{key}' is a top-level map keyed by model, not a default")
+    for model, order in doc.provider_order.items():
+        if model not in PROVIDER_ORDER_MODELS:
+            raise RegistryError(
+                f"provider_order is only allowed for {sorted(PROVIDER_ORDER_MODELS)}, "
+                f"not '{model}' (D-041)"
+            )
+        if not order:
+            raise RegistryError(f"provider_order for '{model}' must list at least one provider")
     agents: dict[str, AgentConfig] = {}
     names: set[str] = set()
     versions = set(available_versions())
     for i, entry in enumerate(doc.agents):
-        if "pricing" in entry:
-            raise RegistryError(
-                f"agent #{i + 1} ({entry.get('id')!r}): 'pricing' belongs in the top-level map"
-            )
+        for key in _TOP_LEVEL_ONLY:
+            if key in entry:
+                raise RegistryError(
+                    f"agent #{i + 1} ({entry.get('id')!r}): '{key}' belongs in the top-level map"
+                )
         try:
             cfg = AgentConfig.model_validate(deep_merge(doc.defaults, entry))
         except ValidationError as exc:
@@ -67,7 +84,10 @@ def parse_agents(text: str) -> dict[str, AgentConfig]:
         price = doc.pricing.get(cfg.model)
         if price is None:  # D-035: every model used by any agent, enabled or not
             raise RegistryError(f"agent '{cfg.id}': no pricing entry for model '{cfg.model}'")
-        cfg = cfg.model_copy(update={"pricing": price})
+        order = doc.provider_order.get(cfg.model)
+        cfg = cfg.model_copy(
+            update={"pricing": price, "provider_order": list(order) if order else None}
+        )
         if cfg.id in agents:
             raise RegistryError(f"duplicate agent id '{cfg.id}'")
         if cfg.display_name in names:

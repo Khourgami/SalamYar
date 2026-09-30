@@ -170,13 +170,14 @@ def _llm_totals(db: Session, session_id: str) -> tuple[float | None, int | None]
 
 def _usage_totals(db: Session, session_id: str) -> dict[str, Any]:
     """v1.2 session totals over every attempt; SUM is NULL when no attempt reported a value."""
-    count, prompt, completion, reasoning, estimated = db.execute(
+    count, prompt, completion, reasoning, estimated, cached = db.execute(
         select(
             func.count(m.LLMCall.id),
             func.sum(m.LLMCall.prompt_tokens),
             func.sum(m.LLMCall.completion_tokens),
             func.sum(m.LLMCall.reasoning_tokens),
             func.sum(m.LLMCall.estimated_cost_usd),
+            func.sum(m.LLMCall.cached_prompt_tokens),
         ).where(m.LLMCall.session_id == session_id)
     ).one()
     return {
@@ -185,6 +186,7 @@ def _usage_totals(db: Session, session_id: str) -> dict[str, Any]:
         "total_completion_tokens": completion,
         "total_reasoning_tokens": reasoning,
         "total_estimated_cost_usd": float(estimated) if estimated is not None else None,
+        "total_cached_prompt_tokens": cached,
     }
 
 
@@ -414,6 +416,7 @@ class _Tracer:
         resp = rec.response
         prompt = resp.prompt_tokens if resp else None
         completion = resp.completion_tokens if resp else None
+        cached = resp.cached_prompt_tokens if resp else None
         price = self.pricing
         row = m.LLMCall(
             session_id=self.sess.id,
@@ -433,8 +436,12 @@ class _Tracer:
             price_input_per_mtok=price.input_per_mtok if price else None,
             price_output_per_mtok=price.output_per_mtok if price else None,
             estimated_cost_usd=(
-                price.estimate(prompt, billable_output_tokens(completion)) if price else None
+                price.estimate(prompt, billable_output_tokens(completion), cached)
+                if price
+                else None
             ),
+            provider=resp.provider if resp else None,
+            cached_prompt_tokens=cached,
         )
         self.db.add(row)
         self.db.flush()

@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 from app.db import models as m
 from app.db.types import loads
 
-GroupBy = Literal["session", "agent", "model", "architecture"]
+GroupBy = Literal["session", "agent", "model", "architecture", "provider"]
 StatusFilter = Literal["completed", "all"]
 DIFF_THRESHOLD = 0.15  # mark rows whose |estimated − reported| / reported exceeds 15 %
 FLAG = ">15%"
@@ -33,6 +33,8 @@ GROUP_HEADER = [
     "completion_mean",
     "reasoning_tokens",
     "reasoning_mean",
+    "cached_prompt_tokens",
+    "cached_prompt_mean",
     "reported_usd",
     "reported_mean",
     "reported_median",
@@ -55,6 +57,8 @@ SESSION_HEADER = [
     "prompt_tokens",
     "completion_tokens",
     "reasoning_tokens",
+    "cached_prompt_tokens",
+    "providers",
     "reported_usd",
     "estimated_usd",
 ]
@@ -70,6 +74,13 @@ class _Facts:
     both_reported: float = 0.0  # sums over calls that have a reported AND an estimated cost
     both_estimated: float = 0.0
     both_calls: int = 0
+    providers: set[str] = field(default_factory=set)  # serving providers of the calls (D-041)
+
+    @property
+    def provider_key(self) -> str:
+        """`model / provider`; several providers in one session are joined with `+`, and a
+        session whose calls reported none is `unknown` (B-051)."""
+        return f"{self.model} / {'+'.join(sorted(self.providers)) or 'unknown'}"
 
 
 @dataclass
@@ -93,6 +104,8 @@ def _load(db: Session, status: StatusFilter) -> list[_Facts]:
         f = facts.get(call.session_id)
         if f is None:
             continue
+        if call.provider:
+            f.providers.add(call.provider)
         if call.purpose == "repair":
             f.repair_calls += 1
         if call.cost_usd is not None and call.estimated_cost_usd is not None:
@@ -143,6 +156,7 @@ def _group_row(key: str, group: list[_Facts]) -> list[str]:
         *tokens("total_prompt_tokens"),
         *tokens("total_completion_tokens"),
         *tokens("total_reasoning_tokens"),
+        *tokens("total_cached_prompt_tokens"),
         _usd(sum(reported)) if reported else "",
         _usd(fmean(reported)) if reported else "",
         _usd(median(reported)) if reported else "",
@@ -169,6 +183,8 @@ def _session_row(f: _Facts) -> list[str]:
         _int(s.total_prompt_tokens),
         _int(s.total_completion_tokens),
         _int(s.total_reasoning_tokens),
+        _int(s.total_cached_prompt_tokens),
+        "+".join(sorted(f.providers)),
         _usd(s.total_cost_usd),
         _usd(s.total_estimated_cost_usd),
     ]
@@ -185,7 +201,12 @@ def build_report(
         return Report(SESSION_HEADER, [_session_row(f) for f in facts])
     groups: dict[str, list[_Facts]] = defaultdict(list)
     for f in facts:  # grouping by the session snapshot, like the metrics (B-021)
-        key = {"agent": f.sess.agent_id, "model": f.model, "architecture": f.architecture}[by]
+        key = {
+            "agent": f.sess.agent_id,
+            "model": f.model,
+            "architecture": f.architecture,
+            "provider": f.provider_key,
+        }[by]
         groups[key].append(f)
     return Report(GROUP_HEADER, [_group_row(k, groups[k]) for k in sorted(groups)])
 

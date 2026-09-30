@@ -62,6 +62,15 @@ class SmokeResult:
         return len(self.traces)
 
     @property
+    def step_providers(self) -> dict[str, str | None]:
+        """Serving provider of the last call of each step that made a call (D-041); None when
+        that call has no response (deadline, transport failure) or no provider field."""
+        out: dict[str, str | None] = {}
+        for step, t in zip(self.trace_steps, self.traces, strict=False):
+            out[step] = t.response.provider if t.response else None
+        return out
+
+    @property
     def mean_turn_ms(self) -> float | None:
         values = list(self.turn_latencies_ms.values())
         return sum(values) / len(values) if values else None
@@ -195,6 +204,15 @@ def _secs(ms: float | None) -> str:
     return "-" if ms is None else f"{ms / 1000:.1f}"
 
 
+def format_providers(r: SmokeResult) -> str:
+    """One provider per step (`t1/t2/concl`), collapsed to one name when all steps agree."""
+    per_step = r.step_providers
+    values = [per_step[s] or "-" for s in STEPS if s in per_step]
+    if not values:
+        return "-"
+    return values[0] if len(set(values)) == 1 else "/".join(values)
+
+
 def format_table(results: Sequence[SmokeResult]) -> str:
     header = [
         "agent",
@@ -212,6 +230,7 @@ def format_table(results: Sequence[SmokeResult]) -> str:
         "repairs",
         "total_s",
         "cost_usd",
+        "provider",
         "reason",
         "error",
     ]
@@ -230,6 +249,7 @@ def format_table(results: Sequence[SmokeResult]) -> str:
             str(r.repairs),
             f"{r.latency_ms / 1000:.1f}",
             "-" if r.cost_usd is None else f"{r.cost_usd:.5f}",
+            format_providers(r),
             r.failure or "-",
             (r.error[: ERROR_WIDTH - 1] + "…") if len(r.error) > ERROR_WIDTH else r.error,
         ]
@@ -266,7 +286,9 @@ def result_to_dict(r: SmokeResult) -> dict[str, Any]:
                 "prompt_tokens": resp.prompt_tokens if resp else None,
                 "completion_tokens": resp.completion_tokens if resp else None,
                 "reasoning_tokens": resp.reasoning_tokens if resp else None,
+                "cached_prompt_tokens": resp.cached_prompt_tokens if resp else None,
                 "model_reported": resp.model_reported if resp else None,
+                "provider": resp.provider if resp else None,
                 "error": _clip(t.error),
                 # raw output only when it failed validation or its step failed (trace excerpt)
                 "output_excerpt": (
@@ -281,11 +303,13 @@ def result_to_dict(r: SmokeResult) -> dict[str, Any]:
         "output_mode": cfg.output_mode if cfg else None,
         "send_temperature": cfg.send_temperature if cfg else None,
         "reasoning_effort": cfg.reasoning_effort if cfg else None,
+        "provider_order": cfg.provider_order if cfg else None,
         "enabled": cfg.enabled if cfg else None,
         "model_found": r.model_found,
         "ok": r.ok,
         "steps": {s: getattr(r, s) for s in STEPS},
         "turn_latency_ms": dict(r.turn_latencies_ms),
+        "step_providers": r.step_providers,
         "mean_turn_latency_ms": r.mean_turn_ms,
         "max_turn_latency_ms": r.max_turn_ms,
         "total_latency_ms": r.latency_ms,

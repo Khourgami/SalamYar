@@ -32,6 +32,7 @@ def test_snapshot_contains_prices(lab: Lab) -> None:
     assert _snapshot(sid)["pricing"] == {
         "input_per_mtok": 2.0,
         "output_per_mtok": 8.0,
+        "input_cache_read_per_mtok": None,
         "source": "t",
         "as_of": "2026-09-30",
     }
@@ -201,7 +202,7 @@ def test_schema_check_fails_on_old_database(tmp_path: Path) -> None:
     con.commit()
     con.close()
     app_db.configure(str(path))
-    with pytest.raises(SchemaError, match="older than v1.2") as exc:
+    with pytest.raises(SchemaError, match="older than the current schema") as exc:
         app_db.init_db()
     msg = str(exc.value)
     assert "delete data/*.db or use a new DATABASE_PATH" in msg

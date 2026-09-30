@@ -54,6 +54,9 @@ class OpenRouterClient:
     @staticmethod
     def build_body(req: LLMRequest) -> dict[str, Any]:
         provider: dict[str, Any] = {"data_collection": "deny"}
+        if req.provider_order:  # D-041: pin the routing, fallbacks allowed, privacy unchanged
+            provider["order"] = list(req.provider_order)
+            provider["allow_fallbacks"] = True
         body: dict[str, Any] = {
             "model": req.model,
             "messages": [m.model_dump() for m in req.messages],
@@ -86,7 +89,9 @@ class OpenRouterClient:
         message = choices[0].get("message") or {}
         usage = data.get("usage") or {}
         details = usage.get("completion_tokens_details") or {}
+        prompt_details = usage.get("prompt_tokens_details") or {}
         cost = usage.get("cost")
+        provider = data.get("provider")
         return LLMResponse(
             text=message.get("content") or "",
             model_reported=data.get("model"),
@@ -96,6 +101,8 @@ class OpenRouterClient:
             cost_usd=float(cost) if cost is not None else None,
             latency_ms=latency_ms,
             raw=data,
+            provider=provider if isinstance(provider, str) and provider else None,
+            cached_prompt_tokens=prompt_details.get("cached_tokens"),
         )
 
     async def complete(self, req: LLMRequest, budget: TurnBudget | None = None) -> LLMResponse:

@@ -69,6 +69,7 @@ def make_request(
         max_tokens=config.max_tokens,
         reasoning_effort=config.reasoning_effort,
         output_mode=config.output_mode,
+        provider_order=config.provider_order,
         json_schema=(
             {"name": schema_model.__name__, "schema": schema_model.model_json_schema()}
             if config.output_mode == "json_schema"

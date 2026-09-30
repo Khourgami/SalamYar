@@ -62,6 +62,8 @@ class Session(Base):
     total_completion_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
     total_reasoning_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
     total_estimated_cost_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # phase 2d (D-042): sum of cached prompt tokens over the attempts that reported them
+    total_cached_prompt_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
 
 class Message(Base):
@@ -121,6 +123,10 @@ class LLMCall(Base):
     price_input_per_mtok: Mapped[float | None] = mapped_column(Float, nullable=True)
     price_output_per_mtok: Mapped[float | None] = mapped_column(Float, nullable=True)
     estimated_cost_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # phase 2d: serving provider reported by OpenRouter (D-041) and cached prompt tokens (D-042);
+    # null for attempts without a response (deadline, transport failure)
+    provider: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    cached_prompt_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
 
 class MessageFeedback(Base):

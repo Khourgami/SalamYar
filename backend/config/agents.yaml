@@ -17,15 +17,17 @@ defaults:
 # D-035: USD per 1M tokens, one entry per model used by any agent (enabled or not). Snapshot of
 # OpenRouter GET /models `pricing.prompt` / `pricing.completion` (USD per token) × 1,000,000.
 # Only used for `estimated_cost_usd`; the reported `usage.cost` stays the source of truth.
-# Extra price fields seen on /models (cache read/write, reasoning, long-context and time-of-day
-# overrides) are not modeled — see B-042.
+# D-042: `input_cache_read_per_mtok` = `pricing.input_cache_read` × 1,000,000 for every model that
+# lists it (re-read 2026-09-30 in phase 2d, B-050; input/output unchanged); gpt-oss-120b lists none.
+# Other extra price fields (cache write, reasoning, long-context and time-of-day overrides) are not
+# modeled — see B-042.
 pricing:
-  openai/gpt-5.4: { input_per_mtok: 2.5, output_per_mtok: 15.0, source: openrouter-models, as_of: "2026-09-30" }
-  anthropic/claude-sonnet-5.5: { input_per_mtok: 2.0, output_per_mtok: 10.0, source: openrouter-models, as_of: "2026-09-30" }
-  google/gemini-3.1-pro-preview: { input_per_mtok: 2.0, output_per_mtok: 12.0, source: openrouter-models, as_of: "2026-09-30" }
-  openai/gpt-5.4-mini: { input_per_mtok: 0.75, output_per_mtok: 4.5, source: openrouter-models, as_of: "2026-09-30" }
-  google/gemini-3-flash-preview: { input_per_mtok: 0.5, output_per_mtok: 3.0, source: openrouter-models, as_of: "2026-09-30" }
-  deepseek/deepseek-v4-pro-0813: { input_per_mtok: 1.32, output_per_mtok: 3.96, source: openrouter-models, as_of: "2026-09-30" }
+  openai/gpt-5.4: { input_per_mtok: 2.5, output_per_mtok: 15.0, input_cache_read_per_mtok: 0.25, source: openrouter-models, as_of: "2026-09-30" }
+  anthropic/claude-sonnet-5.5: { input_per_mtok: 2.0, output_per_mtok: 10.0, input_cache_read_per_mtok: 0.2, source: openrouter-models, as_of: "2026-09-30" }
+  google/gemini-3.1-pro-preview: { input_per_mtok: 2.0, output_per_mtok: 12.0, input_cache_read_per_mtok: 0.2, source: openrouter-models, as_of: "2026-09-30" }
+  openai/gpt-5.4-mini: { input_per_mtok: 0.75, output_per_mtok: 4.5, input_cache_read_per_mtok: 0.075, source: openrouter-models, as_of: "2026-09-30" }
+  google/gemini-3-flash-preview: { input_per_mtok: 0.5, output_per_mtok: 3.0, input_cache_read_per_mtok: 0.05, source: openrouter-models, as_of: "2026-09-30" }
+  deepseek/deepseek-v4-pro-0813: { input_per_mtok: 1.32, output_per_mtok: 3.96, input_cache_read_per_mtok: 0.044, source: openrouter-models, as_of: "2026-09-30" }
   openai/gpt-oss-120b: { input_per_mtok: 0.037, output_per_mtok: 0.17, source: openrouter-models, as_of: "2026-09-30" }
 
 agents:

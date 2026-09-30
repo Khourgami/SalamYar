@@ -12,11 +12,14 @@ from app import cli
 from app import db as app_db
 from app.db import models as m
 from app.db.types import dumps, utcnow
+from app.services.cost_report import GROUP_HEADER
 from tests import fixtures as fx
 from tests.helpers import make_user
 
-# (purpose, prompt, completion, reasoning, reported cost, estimated cost)
-Call = tuple[str, int | None, int | None, int | None, float | None, float | None]
+GROUP_COLUMNS = GROUP_HEADER[1:]
+
+# (purpose, prompt, completion, reasoning, reported cost, estimated cost[, cached, provider])
+Call = tuple[Any, ...]
 
 
 def _seed_session(
@@ -31,6 +34,8 @@ def _seed_session(
     final: str | None,
     questions: int,
 ) -> str:
+    calls = [(*c, None, None)[:8] for c in calls]
+
     def total(i: int) -> Any:
         values = [c[i] for c in calls if c[i] is not None]
         return sum(values) if values else None
@@ -50,10 +55,11 @@ def _seed_session(
         total_completion_tokens=total(2),
         total_reasoning_tokens=total(3),
         total_estimated_cost_usd=total(5),
+        total_cached_prompt_tokens=total(6),
     )
     db.add(sess)
     db.flush()
-    for purpose, prompt, completion, reasoning, cost, est in calls:
+    for purpose, prompt, completion, reasoning, cost, est, cached, provider in calls:
         db.add(
             m.LLMCall(
                 session_id=sess.id,
@@ -66,6 +72,8 @@ def _seed_session(
                 reasoning_tokens=reasoning,
                 cost_usd=cost,
                 estimated_cost_usd=est,
+                cached_prompt_tokens=cached,
+                provider=provider,
                 attempt=2 if purpose == "repair" else 1,
             )
         )
@@ -113,8 +121,8 @@ def seeded(tmp_path: Path) -> tuple[str, list[str]]:
                 "m/a",
                 "simple",
                 [
-                    ("turn", 1000, 100, None, 0.01, 0.011),
-                    ("assessment", 2000, 200, None, 0.02, 0.022),
+                    ("turn", 1000, 100, None, 0.01, 0.011, 500, "DeepInfra"),
+                    ("assessment", 2000, 200, None, 0.02, 0.022, 700, "DeepInfra"),
                 ],
                 final="ROUTINE_DAYS",
                 questions=1,
@@ -127,7 +135,7 @@ def seeded(tmp_path: Path) -> tuple[str, list[str]]:
                 "m/a",
                 "simple",
                 [
-                    ("turn", 1000, 100, 20, 0.02, 0.021),
+                    ("turn", 1000, 100, 20, 0.02, 0.021, 100, "Cerebras"),
                     ("assessment", None, None, None, None, None),  # failed, no usage
                 ],
                 final="URGENT_24H",
@@ -141,9 +149,9 @@ def seeded(tmp_path: Path) -> tuple[str, list[str]]:
                 "m/b",
                 "structured",
                 [
-                    ("turn", 500, 50, 5, 0.01, 0.012),
+                    ("turn", 500, 50, 5, 0.01, 0.012, None, "Crusoe"),
                     ("repair", 600, 60, 6, 0.01, 0.012),
-                    ("assessment", 700, 70, 7, 0.01, 0.012),
+                    ("assessment", 700, 70, 7, 0.01, 0.012, None, "Cerebras"),
                 ],
                 final="EMERGENCY_NOW",
                 questions=3,
@@ -211,6 +219,8 @@ EXPECTED_AGENT = {
         "completion_mean": "200.0",
         "reasoning_tokens": "20",
         "reasoning_mean": "20.0",
+        "cached_prompt_tokens": "1300",
+        "cached_prompt_mean": "650.0",
         "reported_usd": "0.050000",
         "reported_mean": "0.025000",
         "reported_median": "0.025000",
@@ -230,6 +240,8 @@ EXPECTED_AGENT = {
         "completion_mean": "180.0",
         "reasoning_tokens": "18",
         "reasoning_mean": "18.0",
+        "cached_prompt_tokens": "",
+        "cached_prompt_mean": "",
         "reported_usd": "0.030000",
         "reported_mean": "0.030000",
         "reported_median": "0.030000",
@@ -249,6 +261,8 @@ EXPECTED_AGENT = {
         "completion_mean": "10.0",
         "reasoning_tokens": "",
         "reasoning_mean": "",
+        "cached_prompt_tokens": "",
+        "cached_prompt_mean": "",
         "reported_usd": "",
         "reported_mean": "",
         "reported_median": "",
@@ -340,9 +354,15 @@ def test_by_session(seeded: tuple[str, list[str]], capsys: pytest.CaptureFixture
         "prompt_tokens": "1800",
         "completion_tokens": "180",
         "reasoning_tokens": "18",
+        "cached_prompt_tokens": "",
+        "providers": "Cerebras+Crusoe",
         "reported_usd": "0.030000",
         "estimated_usd": "0.036000",
     }
+    assert (rows[ids[0]]["cached_prompt_tokens"], rows[ids[0]]["providers"]) == (
+        "1200",
+        "DeepInfra",
+    )
     assert rows[ids[4]]["reported_usd"] == "" and rows[ids[4]]["reasoning_tokens"] == ""
     assert "diff_pct" not in out
     out_all = _run(capsys, "--db", path, "--by", "session", "--status", "all")[1]
@@ -354,7 +374,34 @@ def test_by_session(seeded: tuple[str, list[str]], capsys: pytest.CaptureFixture
     )
 
 
-@pytest.mark.parametrize("by", ["agent", "session"])
+def test_by_provider(seeded: tuple[str, list[str]], capsys: pytest.CaptureFixture) -> None:
+    """Key `model / provider`; a session served by several providers joins them with `+`,
+    one without any reported provider is `unknown` (B-051)."""
+    path, _ = seeded
+    code, out = _run(capsys, "--db", path, "--by", "provider")
+    assert code == 0 and out.startswith("Cost report by provider")
+    rows = _table(out)
+    assert list(rows) == [
+        "m/a / Cerebras",
+        "m/a / DeepInfra",
+        "m/b / Cerebras+Crusoe",
+        "m/b / unknown",
+    ]
+    s1 = rows["m/a / DeepInfra"]
+    assert (s1["sessions"], s1["llm_calls"], s1["prompt_tokens"]) == ("1", "2", "3000")
+    assert (s1["cached_prompt_tokens"], s1["cached_prompt_mean"]) == ("1200", "1200.0")
+    assert (s1["reported_usd"], s1["estimated_usd"], s1["diff_pct"]) == (
+        "0.030000",
+        "0.033000",
+        "10.0",
+    )
+    assert rows["m/a / Cerebras"]["cached_prompt_tokens"] == "100"
+    assert rows["m/b / Cerebras+Crusoe"]["repair_calls"] == "1"
+    assert rows["m/b / unknown"]["sessions"] == "1"  # S5 (the active S4 is excluded)
+    assert list(s1) == ["key", *GROUP_COLUMNS]  # same columns as the other groupings
+
+
+@pytest.mark.parametrize("by", ["agent", "session", "provider"])
 def test_csv_matches_table(
     seeded: tuple[str, list[str]], capsys: pytest.CaptureFixture, tmp_path: Path, by: str
 ) -> None:
@@ -386,7 +433,7 @@ def test_missing_db_and_old_schema(capsys: pytest.CaptureFixture, tmp_path: Path
     con.execute("CREATE TABLE sessions (id TEXT PRIMARY KEY)")
     con.close()
     assert cli.main(["cost-report", "--db", str(old)]) == 2
-    assert "older than v1.2" in capsys.readouterr().err
+    assert "older than the current schema" in capsys.readouterr().err
 
 
 def test_database_path_from_env(

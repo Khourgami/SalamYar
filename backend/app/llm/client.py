@@ -24,6 +24,8 @@ class LLMRequest(BaseModel):
     reasoning_effort: ReasoningEffort | None = None
     json_schema: dict[str, Any] | None = None  # used only when output_mode == "json_schema"
     output_mode: OutputMode = "json_object"
+    # D-041: OpenRouter provider slugs tried first (fallbacks stay allowed); None = default routing
+    provider_order: list[str] | None = None
 
 
 class LLMResponse(BaseModel):
@@ -35,6 +37,8 @@ class LLMResponse(BaseModel):
     cost_usd: float | None
     latency_ms: int
     raw: dict[str, Any]
+    provider: str | None = None  # serving provider as reported by OpenRouter (D-041)
+    cached_prompt_tokens: int | None = None  # prompt tokens read from the cache (D-042)
 
 
 class LLMError(Exception):

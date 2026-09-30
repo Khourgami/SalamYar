@@ -65,7 +65,9 @@ class SchemaError(RuntimeError):
     """The DB file was created by an older version (no migrations in the PoC)."""
 
 
-SCHEMA_ERROR = "database schema is older than v1.2 — delete data/*.db or use a new DATABASE_PATH"
+SCHEMA_ERROR = (
+    "database schema is older than the current schema — delete data/*.db or use a new DATABASE_PATH"
+)
 
 
 def check_schema(engine: Engine) -> None:

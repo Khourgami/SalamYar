@@ -229,8 +229,15 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--json", metavar="PATH", help="also write the per-agent results as JSON")
     p.set_defaults(func=cmd_smoke_test)
 
-    p = sub.add_parser("cost-report", help="tokens and cost per session/agent/model/architecture")
-    p.add_argument("--by", choices=["session", "agent", "model", "architecture"], default="agent")
+    p = sub.add_parser(
+        "cost-report", help="tokens and cost per session/agent/model/architecture/provider"
+    )
+    p.add_argument(
+        "--by",
+        choices=["session", "agent", "model", "architecture", "provider"],
+        default="agent",
+        help="grouping; 'provider' groups by 'model / serving provider(s)'",
+    )
     p.add_argument("--status", choices=["completed", "all"], default="completed")
     p.add_argument("--csv", metavar="PATH", help="also write the table as CSV (UTF-8 with BOM)")
     p.add_argument("--db", metavar="PATH", help="SQLite file (default: DATABASE_PATH)")

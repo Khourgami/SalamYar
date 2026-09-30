@@ -178,6 +178,17 @@ def test_repo_config_prices_every_model() -> None:
         assert a.pricing is not None
         assert a.pricing.input_per_mtok > 0 and a.pricing.output_per_mtok > 0
         assert a.pricing.source == "openrouter-models" and a.pricing.as_of == "2026-09-30"
+    # D-042: cache-read prices for every model that lists one on /models (B-050)
+    cache = {a.model: a.pricing.input_cache_read_per_mtok for a in agents.values() if a.pricing}
+    assert cache == {
+        "openai/gpt-5.4": 0.25,
+        "anthropic/claude-sonnet-5.5": 0.2,
+        "google/gemini-3.1-pro-preview": 0.2,
+        "openai/gpt-5.4-mini": 0.075,
+        "google/gemini-3-flash-preview": 0.05,
+        "deepseek/deepseek-v4-pro-0813": 0.044,
+        "openai/gpt-oss-120b": None,
+    }
 
 
 def test_pricing_attached_to_agent() -> None:
@@ -188,6 +199,7 @@ def test_pricing_attached_to_agent() -> None:
     assert agents["a-x"].model_dump(mode="json")["pricing"] == {
         "input_per_mtok": 1.5,
         "output_per_mtok": 6.0,
+        "input_cache_read_per_mtok": None,
         "source": "t",
         "as_of": "d",
     }
@@ -240,6 +252,85 @@ def test_estimate_formula() -> None:
     assert price.estimate(3722, 852) == pytest.approx((3722 * 1.25 + 852 * 10.0) / 1e6)
     assert price.estimate(None, 10) is None and price.estimate(10, None) is None
     assert price.estimate(0, 0) == 0.0
+
+
+def test_estimate_with_cached_tokens() -> None:
+    """D-042: (prompt − cached) × input + cached × cache_read + completion × output, per 1e6."""
+    from app.agents.config import ModelPricing
+
+    cached_price = ModelPricing(
+        input_per_mtok=2.5,
+        output_per_mtok=15.0,
+        input_cache_read_per_mtok=0.25,
+        source="s",
+        as_of="d",
+    )
+    plain = ModelPricing(input_per_mtok=2.5, output_per_mtok=15.0, source="s", as_of="d")
+    # 3268 prompt (2816 cached), 824 completion: 452 × 2.5 + 2816 × 0.25 + 824 × 15 = 14194
+    assert cached_price.estimate(3268, 824, 2816) == pytest.approx(0.014194)
+    # without cached tokens (None or 0) the formula is unchanged: 3268 × 2.5 + 824 × 15 = 20530
+    assert cached_price.estimate(3268, 824) == pytest.approx(0.02053)
+    assert cached_price.estimate(3268, 824, 0) == pytest.approx(0.02053)
+    # without a cache price the cached tokens are billed at the input price
+    assert plain.estimate(3268, 824, 2816) == pytest.approx(0.02053)
+    # cached tokens never exceed the prompt tokens
+    assert cached_price.estimate(100, 0, 500) == pytest.approx(100 * 0.25 / 1e6)
+    assert cached_price.estimate(None, 824, 2816) is None
+
+
+def test_cache_read_price_optional_and_non_negative() -> None:
+    ok = _yaml(("a-x", "D1", "simple", True, ""), priced=False).replace(
+        "pricing:\n  {}\n",
+        "pricing:\n  x/a-x: { input_per_mtok: 2, output_per_mtok: 8, "
+        "input_cache_read_per_mtok: 0.2, source: s, as_of: d }\n",
+    )
+    price = parse_agents(ok)["a-x"].pricing
+    assert price is not None and price.input_cache_read_per_mtok == 0.2
+    with pytest.raises(RegistryError, match="input_cache_read_per_mtok"):
+        parse_agents(ok.replace("input_cache_read_per_mtok: 0.2", "input_cache_read_per_mtok: -1"))
+
+
+OSS = "openai/gpt-oss-120b"
+
+
+def _oss_yaml(order_block: str, model: str = OSS, extra: str = "") -> str:
+    return (
+        "pricing:\n"
+        f"  {model}: {{ input_per_mtok: 0.037, output_per_mtok: 0.17, source: s, as_of: d }}\n"
+        f"{order_block}"
+        "agents:\n"
+        f'  - id: b-oss\n    display_name: "D1"\n    architecture: structured\n'
+        f"    model: {model}\n{extra}"
+    )
+
+
+def test_provider_order_attached_for_open_weight_model() -> None:
+    agents = parse_agents(_oss_yaml(f"provider_order:\n  {OSS}: [cerebras/fp16, crusoe]\n"))
+    cfg = agents["b-oss"]
+    assert cfg.provider_order == ["cerebras/fp16", "crusoe"]
+    # part of the session snapshot (B-015)
+    assert cfg.model_dump(mode="json")["provider_order"] == ["cerebras/fp16", "crusoe"]
+    unpinned = parse_agents(_oss_yaml(""))["b-oss"]
+    assert unpinned.provider_order is None
+    assert unpinned.model_dump(mode="json")["provider_order"] is None
+
+
+def test_provider_order_rejected_for_other_models() -> None:
+    text = _oss_yaml("provider_order:\n  openai/gpt-5.4: [openai]\n", model="openai/gpt-5.4")
+    with pytest.raises(RegistryError, match="provider_order is only allowed.*openai/gpt-5.4"):
+        parse_agents(text)
+    with pytest.raises(RegistryError, match="at least one provider"):
+        parse_agents(_oss_yaml(f"provider_order:\n  {OSS}: []\n"))
+    with pytest.raises(RegistryError, match="invalid agents file"):
+        parse_agents(_oss_yaml(f'provider_order:\n  {OSS}: [""]\n'))
+
+
+def test_provider_order_not_allowed_per_agent_or_in_defaults() -> None:
+    with pytest.raises(RegistryError, match="'provider_order' belongs in the top-level map"):
+        parse_agents(_oss_yaml("", extra="    provider_order: [crusoe]\n"))
+    in_defaults = "defaults:\n  provider_order: [crusoe]\n" + _oss_yaml("")
+    with pytest.raises(RegistryError, match="'provider_order' is a top-level map"):
+        parse_agents(in_defaults)
 
 
 def test_registry_load_get_enabled(tmp_path: Path) -> None:

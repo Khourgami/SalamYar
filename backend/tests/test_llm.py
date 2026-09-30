@@ -129,6 +129,86 @@ async def test_missing_usage_fields_are_none() -> None:
     assert resp.prompt_tokens is None
 
 
+# Recorded OpenRouter response (phase 2d probe, 2026-09-30; id shortened, content replaced):
+# the serving provider is the top-level `provider`, cached prompt tokens are in
+# `usage.prompt_tokens_details.cached_tokens`.
+RECORDED_BODY = {
+    "id": "gen-1790750958-x",
+    "object": "chat.completion",
+    "created": 1790750958,
+    "model": "openai/gpt-oss-120b",
+    "provider": "DeepInfra",
+    "system_fingerprint": None,
+    "service_tier": "default",
+    "choices": [{"message": {"role": "assistant", "content": '{"ok": true}'}}],
+    "usage": {
+        "prompt_tokens": 3268,
+        "completion_tokens": 824,
+        "total_tokens": 4092,
+        "cost": 5.997e-06,
+        "is_byok": False,
+        "prompt_tokens_details": {
+            "cached_tokens": 2816,
+            "cache_write_tokens": 0,
+            "audio_tokens": 0,
+            "video_tokens": 0,
+        },
+        "cost_details": {"upstream_inference_cost": 5.997e-06},
+        "completion_tokens_details": {"reasoning_tokens": 7, "image_tokens": 0},
+    },
+}
+
+
+async def test_provider_and_cached_tokens_parsed() -> None:
+    rec = Recorder(httpx.Response(200, json=RECORDED_BODY))
+    resp = await _client(rec).complete(_req(model="openai/gpt-oss-120b"))
+    assert resp.provider == "DeepInfra"
+    assert resp.cached_prompt_tokens == 2816
+    assert (resp.prompt_tokens, resp.completion_tokens, resp.reasoning_tokens) == (3268, 824, 7)
+
+
+async def test_provider_and_cached_tokens_missing_are_none() -> None:
+    rec = Recorder(
+        httpx.Response(200, json=OK_BODY),
+        httpx.Response(200, json={**RECORDED_BODY, "provider": ""}),
+        httpx.Response(200, json={**RECORDED_BODY, "provider": {"name": "x"}}),
+    )
+    c = _client(rec)
+    resp = await c.complete(_req())
+    assert resp.provider is None and resp.cached_prompt_tokens is None
+    assert (await c.complete(_req())).provider is None  # empty string
+    assert (await c.complete(_req())).provider is None  # not a string
+
+
+async def test_provider_order_in_request_body() -> None:
+    """D-041: `order` + fallbacks allowed, and `data_collection: deny` is always kept."""
+    rec = Recorder(*(httpx.Response(200, json=OK_BODY) for _ in range(3)))
+    c = _client(rec)
+    await c.complete(_req(model="openai/gpt-oss-120b", provider_order=["cerebras/fp16"]))
+    await c.complete(_req(model="openai/gpt-oss-120b"))
+    await c.complete(
+        _req(
+            output_mode="json_schema",
+            json_schema={"name": "X", "schema": {}},
+            provider_order=["crusoe", "baseten"],
+        )
+    )
+    assert rec.body(0)["provider"] == {
+        "data_collection": "deny",
+        "order": ["cerebras/fp16"],
+        "allow_fallbacks": True,
+    }
+    assert rec.body(1)["provider"] == {"data_collection": "deny"}  # no order when not configured
+    assert rec.body(2)["provider"] == {
+        "data_collection": "deny",
+        "order": ["crusoe", "baseten"],
+        "allow_fallbacks": True,
+        "require_parameters": True,
+    }
+    for i in range(3):
+        assert rec.body(i)["provider"].get("allow_fallbacks") is not False
+
+
 async def test_one_retry_on_500_then_success() -> None:
     rec = Recorder(
         httpx.Response(500, json={"error": {"message": "boom"}}), httpx.Response(200, json=OK_BODY)
