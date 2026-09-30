@@ -30,6 +30,13 @@ pricing:
   deepseek/deepseek-v4-pro-0813: { input_per_mtok: 1.32, output_per_mtok: 3.96, input_cache_read_per_mtok: 0.044, source: openrouter-models, as_of: "2026-09-30" }
   openai/gpt-oss-120b: { input_per_mtok: 0.037, output_per_mtok: 0.17, source: openrouter-models, as_of: "2026-09-30" }
 
+# D-041: OpenRouter routing pinned per open-weight model (sent as provider.order with
+# allow_fallbacks: true; data_collection: deny unchanged). Only gpt-oss-120b and DeepSeek 0813 may
+# appear here. Chosen from two measured smoke runs per candidate (phase 2d, B-053 / B-054).
+provider_order:
+  openai/gpt-oss-120b: [cerebras/fp16]  # D-041: b-gptoss120b passed both runs, p50 3.4 s (BaseTen 9.2, DeepInfra turbo 7.0; Crusoe fell back to DekaLLM) — B-053
+  deepseek/deepseek-v4-pro-0813: [coreweave/fp8]  # D-041: p50 15.1 s vs 29.6 s in 2b-2 (−49%); Together (5.9 s) excluded: it returned 0 reasoning tokens, i.e. ignores `reasoning` — B-054
+
 agents:
   - id: b-gemini3flash
     display_name: "دکتر ۱"
@@ -112,7 +119,7 @@ agents:
     description: null
     architecture: structured
     model: openai/gpt-oss-120b  # D-034
-    enabled: false  # D-036 gate: conclusion failed in both phase 2b-2 runs (assessment call cut by the 50 s call deadline, B-040)
+    enabled: true  # D-036 gate re-check: passed with provider Cerebras (B-055); was disabled in 2b-2 (B-040)
   - id: a-gptoss120b  # D-034: new agent
     display_name: "دکتر ۱۴"
     description: null
