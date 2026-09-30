@@ -4,7 +4,7 @@ from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import Engine, create_engine, event
+from sqlalchemy import Engine, create_engine, event, inspect
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -61,8 +61,32 @@ def session_factory() -> sessionmaker[Session]:
     return _session_factory
 
 
+class SchemaError(RuntimeError):
+    """The DB file was created by an older version (no migrations in the PoC)."""
+
+
+SCHEMA_ERROR = "database schema is older than v1.2 — delete data/*.db or use a new DATABASE_PATH"
+
+
+def check_schema(engine: Engine) -> None:
+    """Fail fast when an existing table lacks a column of the current models: `create_all`
+    creates missing tables but never adds columns to existing ones."""
+    insp = inspect(engine)
+    existing = set(insp.get_table_names())
+    missing: list[str] = []
+    for table in Base.metadata.sorted_tables:
+        if table.name not in existing:
+            continue
+        have = {c["name"] for c in insp.get_columns(table.name)}
+        missing += [f"{table.name}.{col.name}" for col in table.columns if col.name not in have]
+    if missing:
+        raise SchemaError(f"{SCHEMA_ERROR} (missing columns: {', '.join(missing)})")
+
+
 def init_db() -> None:
-    Base.metadata.create_all(get_engine())
+    engine = get_engine()
+    Base.metadata.create_all(engine)
+    check_schema(engine)
 
 
 def get_db() -> Iterator[Session]:

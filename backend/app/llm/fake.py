@@ -18,7 +18,7 @@ class Slow:
     item: str | BaseException
 
 
-Scripted = str | BaseException | Slow
+Scripted = str | BaseException | Slow | LLMResponse  # an LLMResponse is returned as is
 
 
 class FakeLLM:
@@ -41,6 +41,8 @@ class FakeLLM:
             item = item.item
         if isinstance(item, BaseException):
             raise item
+        if isinstance(item, LLMResponse):
+            return item
         return LLMResponse(
             text=item,
             model_reported=req.model,

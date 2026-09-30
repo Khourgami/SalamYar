@@ -8,7 +8,7 @@ Updated by the backend coder at the end of every task.
 | Task | Scope | Status |
 |---|---|---|
 | T1 | Pricing in the registry, snapshot, `list-agents` | ✅ Done (B-042) |
-| T2 | Per-call estimate, session totals, schema check | ⏳ |
+| T2 | Per-call estimate, session totals, schema check | ✅ Done (B-043, B-044) |
 | T3 | API fields and blindness (contract v1.2), metrics, CSV | ⏳ |
 | T4 | `cost-report` CLI | ⏳ |
 | T5 | Dev server + DemoLLM verification | ⏳ |
@@ -136,3 +136,4 @@ Per task: `uv run pytest -q` + `uv run ruff check .`, update this file, commit (
 - 2026-09-30 — Phase 2b-2 T4 compose — no prior `lab.db`; `docker compose up --build -d`; through nginx: login 200, 8 agents (no `b-gptoss120b`, `POST /sessions` → 404), `b-sonnet55` 2 turns 7.6 s / 7.6 s + finish 13.0 s → result, substitute `b-gpt54mini` 9.5 / 9.1 / 9.4 s → result; `down`, check-created `lab.db*` deleted (B-041) — no tests
 - 2026-09-30 — Phase 2b-2 T5 — report `reports/phase-2b2-model-set.md`, README, progress, decisions; total spend USD 0.89 — 322 tests pass, guard 100%, ruff clean
 - 2026-09-30 — Phase 2c T1 — `pricing` map in `agents.yaml` (7 models from public `/models`, exact ×1e6), `ModelPricing` validation (≥ 0, no unknown keys, every referenced model priced), price copied into `AgentConfig.pricing` → session snapshot; `list-agents` price columns; extra `/models` price fields recorded, not modeled (B-042). 11 new tests — 333 tests pass
+- 2026-09-30 — Phase 2c T2 — reasoning-token finding from the 2b/2b-2 traces: `completion_tokens` includes reasoning for every model where it is observable (B-043); `llm_calls` price snapshot + `estimated_cost_usd`, `sessions` call count and token/estimate totals refreshed after every attempt; `init_db` schema check fails fast on pre-v1.2 files (B-044). 7 new tests — 340 tests pass

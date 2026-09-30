@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from app.agents.architectures import build_architecture
 from app.agents.base import EndReason, SessionContext, TurnOutcome, build_transcript
 from app.agents.clinical_schemas import AssessmentResult, ClinicalState, GuardReport, Hypothesis
-from app.agents.config import AgentConfig
+from app.agents.config import AgentConfig, ModelPricing
 from app.agents.json_runner import AgentOutputError, TraceRecord
 from app.agents.registry import Registry
 from app.agents.texts_fa import ERROR_FA, GREETING_FA
@@ -166,6 +166,26 @@ def _llm_totals(db: Session, session_id: str) -> tuple[float | None, int | None]
         ).where(m.LLMCall.session_id == session_id)
     ).one()
     return (float(cost) if n_cost else None), (int(latency) if latency is not None else None)
+
+
+def _usage_totals(db: Session, session_id: str) -> dict[str, Any]:
+    """v1.2 session totals over every attempt; SUM is NULL when no attempt reported a value."""
+    count, prompt, completion, reasoning, estimated = db.execute(
+        select(
+            func.count(m.LLMCall.id),
+            func.sum(m.LLMCall.prompt_tokens),
+            func.sum(m.LLMCall.completion_tokens),
+            func.sum(m.LLMCall.reasoning_tokens),
+            func.sum(m.LLMCall.estimated_cost_usd),
+        ).where(m.LLMCall.session_id == session_id)
+    ).one()
+    return {
+        "llm_call_count": int(count),
+        "total_prompt_tokens": prompt,
+        "total_completion_tokens": completion,
+        "total_reasoning_tokens": reasoning,
+        "total_estimated_cost_usd": float(estimated) if estimated is not None else None,
+    }
 
 
 def _result_card(
@@ -356,18 +376,28 @@ def _previous_hypotheses(db: Session, session_id: str) -> list[Hypothesis]:
     return [Hypothesis.model_validate(h) for h in data.get("hypotheses", [])]
 
 
-class _Tracer:
-    """Persists one `llm_calls` row per attempt; rows are linked to the agent message later."""
+def billable_output_tokens(completion_tokens: int | None) -> int | None:
+    """B-043: every provider's `completion_tokens` already includes its reasoning tokens."""
+    return completion_tokens
 
-    def __init__(self, db: Session, session_id: str) -> None:
+
+class _Tracer:
+    """Persists one `llm_calls` row per attempt (with the snapshot price and the estimate) and
+    refreshes the session totals; rows are linked to the agent message later."""
+
+    def __init__(self, db: Session, sess: m.Session, pricing: ModelPricing | None) -> None:
         self.db = db
-        self.session_id = session_id
+        self.sess = sess
+        self.pricing = pricing
         self.call_ids: list[str] = []
 
     def __call__(self, rec: TraceRecord) -> None:
         resp = rec.response
+        prompt = resp.prompt_tokens if resp else None
+        completion = resp.completion_tokens if resp else None
+        price = self.pricing
         row = m.LLMCall(
-            session_id=self.session_id,
+            session_id=self.sess.id,
             message_id=None,
             purpose=rec.purpose,
             model=rec.request.model,
@@ -375,14 +405,21 @@ class _Tracer:
             response_text=resp.text if resp else None,
             parsed_ok=rec.parsed_ok,
             error=rec.error,
-            prompt_tokens=resp.prompt_tokens if resp else None,
-            completion_tokens=resp.completion_tokens if resp else None,
+            prompt_tokens=prompt,
+            completion_tokens=completion,
             reasoning_tokens=resp.reasoning_tokens if resp else None,
             cost_usd=resp.cost_usd if resp else None,
             latency_ms=resp.latency_ms if resp else rec.latency_ms,
             attempt=rec.attempt,
+            price_input_per_mtok=price.input_per_mtok if price else None,
+            price_output_per_mtok=price.output_per_mtok if price else None,
+            estimated_cost_usd=(
+                price.estimate(prompt, billable_output_tokens(completion)) if price else None
+            ),
         )
         self.db.add(row)
+        self.db.flush()
+        _update_totals(self.db, self.sess)
         self.db.commit()
         self.call_ids.append(row.id)
 
@@ -443,6 +480,8 @@ def new_turn_budget() -> TurnBudget:
 
 def _update_totals(db: Session, sess: m.Session) -> None:
     sess.total_cost_usd, sess.total_llm_latency_ms = _llm_totals(db, sess.id)
+    for key, value in _usage_totals(db, sess.id).items():
+        setattr(sess, key, value)
 
 
 async def process_turn(
@@ -465,7 +504,7 @@ async def process_turn(
             raise AppError(409, "SESSION_COMPLETED", "Session is already completed")
         patient = _patient_message(db, sess, text) if text is not None else None
         cfg = snapshot(sess)
-        tracer = _Tracer(db, sess.id)
+        tracer = _Tracer(db, sess, cfg.pricing)
         ctx = _build_context(db, sess, cfg, tracer)
 
         ctx.budget = new_turn_budget()

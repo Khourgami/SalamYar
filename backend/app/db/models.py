@@ -55,6 +55,13 @@ class Session(Base):
     total_cost_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
     total_llm_latency_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     turn_in_progress: Mapped[bool] = mapped_column(Boolean, default=False)
+    # v1.2 (§8a, D-035): totals over every LLM attempt, refreshed after each attempt. Token and
+    # estimate totals stay null until at least one attempt reported the value.
+    llm_call_count: Mapped[int] = mapped_column(Integer, default=0)
+    total_prompt_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    total_completion_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    total_reasoning_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    total_estimated_cost_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
 
 
 class Message(Base):
@@ -110,6 +117,10 @@ class LLMCall(Base):
     latency_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     attempt: Mapped[int] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
+    # v1.2 (§8a, D-035): the price snapshot used and the estimate (null without usage)
+    price_input_per_mtok: Mapped[float | None] = mapped_column(Float, nullable=True)
+    price_output_per_mtok: Mapped[float | None] = mapped_column(Float, nullable=True)
+    estimated_cost_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
 
 
 class MessageFeedback(Base):
