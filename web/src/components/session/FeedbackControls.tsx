@@ -88,7 +88,7 @@ export function FeedbackControls({
           </span>
         ) : null}
         {feedback?.note ? <span className="text-ink-700">{feedback.note}</span> : null}
-        <span className="text-ink-400">{CHAT_FEEDBACK_READ_ONLY}</span>
+        <span className="text-ink-500">{CHAT_FEEDBACK_READ_ONLY}</span>
       </div>
     )
   }

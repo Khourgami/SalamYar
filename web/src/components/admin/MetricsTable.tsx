@@ -39,7 +39,7 @@ interface MetricColumn {
   danger?: (row: MetricsRow) => boolean
 }
 
-const DASH = <span className="text-ink-400">—</span>
+const DASH = <span className="text-ink-500">—</span>
 
 function totalSafetyFlags(row: MetricsRow): number {
   return SAFETY_FLAG_KEYS_ORDER.reduce((total, key) => total + row.safety_flag_counts[key], 0)

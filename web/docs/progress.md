@@ -22,7 +22,7 @@ See `docs/reports/phase-1-web-mock.md`.
 | T11 | Admin dashboard, admin sessions list and detail + tests | ✅ Done |
 | T12 | Dockerfile, nginx.conf, `.dockerignore`, mobile QA, phase report | ✅ Done |
 
-**Phase 2 — Design system and contract v1.1 (on mocks).** 🚧 In progress.
+**Phase 2 — Design system and contract v1.1 (on mocks).** ✅ Complete (all of T1–T9 done, build + lint + 176 tests green, contrast script green, real-browser QA 107/107, image builds). See `docs/reports/phase-2-design-system.md`.
 
 | Task | Scope | Status |
 |---|---|---|
@@ -34,7 +34,7 @@ See `docs/reports/phase-1-web-mock.md`.
 | T6 | Session page chat restyle (`§6.3`, `§5.11`) | ✅ Done |
 | T7 | Result card, backstage, evaluation, reveal (`§6.4–§6.6`) | ✅ Done |
 | T8 | History and admin (`§6.7–§6.9`, UI_SPEC §3.5) | ✅ Done |
-| T9 | QA, contrast script, screenshots, phase-2 report | ⬜ Not started |
+| T9 | QA, contrast script, screenshots, phase-2 report | ✅ Done |
 
 ### Environment note
 
@@ -53,6 +53,7 @@ npm run test    # vitest run
 
 ## Log
 
+- 2026-09-30 — **Phase 2** — T9 — QA/packaging/report: `build`/`lint`/`test` (176) re-verified, `VITE_USE_MOCKS=false` build proven MSW-free (`check-no-msw` OK), `docker build -t triage-web .` ✅ (75.5 MB). §3 styling greps return nothing. New `scripts/check-contrast.mjs` (W-040): WCAG ratios over the 69 token pairs actually used (alpha foregrounds blended, staleness scan over `src/`) — 0 failures, every text pair ≥ 4.5:1; the check moved five `text-ink-400` *text* usages to `ink-500` (4.24 → 5.14:1; no test changed). New `scripts/qa-browser.mjs` (CDP, dependency-free): **107 checks, 0 failures, no console errors** across 375/768/1024/1280/1440 px on all 8 routes — overflow, sticky banner (incl. signed-out `/login`), drawer/sidebar + role-gated items, 16-needle blindness probe, reveal, real MSW login, chat round-trip, `prefers-reduced-motion` (`1e-06s`), trusted-Tab `:focus-visible` ring, evaluation → reveal. 17 screenshots in `docs/reports/phase-2-screenshots/`. Phase-2 report written. Next: phase 3 (integration).
 - 2026-09-30 — **Phase 2** — T8 — `/history` uses the tabs/sm badges/evaluated chips; `/admin` gains the four exact-sum metric cards, the `recharts` triage-rate chart (title + caption, null-safe), the recent-sessions card (`GET /admin/sessions?limit=5`, «مشاهده همه»), the phase-1 metrics table, the CSV card and the reload button; `/admin/sessions` and its detail restyled. Added `recharts@^2.15`, `MetricCard`, `TriageRatesChart`, the UI_SPEC §3.5 texts, and a `ResizeObserver` stub for the chart tests. Every default-palette class is gone from `src/` (the §3 grep is empty). **Changed test:** `HistoryPage.test.tsx` tabs → `getByRole('tab')` + `aria-selected` (W-039). `build` ✅ `lint` ✅ `test` ✅ (176 tests, +3). Next: T9 QA/report.
 - 2026-09-30 — **Phase 2** — T7 — Result card on tokens (emergency danger `Alert` with the `lg` badge + icon, §6.4 probability-bar thresholds, key/value grid, token tables, clinical-summary grid, warning guard flags, pediatric info `Alert`); `TriageBadge` on `Badge` with per-level tone + icon; backstage on `Card` with a 2px rail timeline, the generic renderer (W-017) unchanged and the mini hypothesis table (`name_fa` + small `name_en` + Persian %); evaluation form rebuilt on `SegmentedRating` (9 KPIs, no stars), the safety-flag warning box, a winner `SegmentedControl`, `focusField` on the first invalid control, a read-only summary and the success-strip reveal. **Changed tests:** `labels.test.ts` palette assertions → token assertions (see W-038). `build` ✅ `lint` ✅ `test` ✅ (173 tests, +8). Next: T8 history + admin.
 - 2026-09-30 — **Phase 2** — T6 — Chat restyle: session header card (back link to `/` with a mirrored chevron, avatar + `display_name` `h2`, `در جریان`/`تمام‌شده` status chip, question counter, secondary finish button while active), bubbles per §5.11 (agent surface/patient `primary-100`/error `neutral-100` with `ارسال دوباره`, `rounded-ss-sm`/`rounded-se-sm`, time under the text via the new `faTime`), the typing bubble with animated dots + `sr-only` text, restyled feedback row (32px toggle buttons), and a sticky composer that auto-grows 1–5 lines with `env(safe-area-inset-bottom)` and an `aria-label="ارسال"` send button. **Changed test:** none (10 phase-1 chat tests unchanged). `build` ✅ `lint` ✅ `test` ✅ (165 tests, +6). Next: T7 result/backstage/evaluation.

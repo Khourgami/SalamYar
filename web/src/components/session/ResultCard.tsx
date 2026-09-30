@@ -56,7 +56,7 @@ function DiseaseName({ nameFa, nameEn }: { nameFa: string; nameEn: string }) {
 }
 
 function FindList({ items }: { items: string[] }) {
-  if (items.length === 0) return <span className="text-ink-400">—</span>
+  if (items.length === 0) return <span className="text-ink-500">—</span>
   return (
     <ul className="list-disc space-y-0.5 ps-4">
       {items.map((item, index) => (

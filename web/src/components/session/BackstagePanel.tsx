@@ -28,7 +28,7 @@ import { faNumber, faPercent } from '@/lib/format'
 
 function ScalarValue({ value }: { value: unknown }) {
   if (value === null || value === undefined || value === '') {
-    return <span className="text-ink-400">—</span>
+    return <span className="text-ink-500">—</span>
   }
   if (typeof value === 'boolean') return <span>{value ? 'بله' : 'خیر'}</span>
   if (typeof value === 'number') return <span>{faNumber(value)}</span>
@@ -37,7 +37,7 @@ function ScalarValue({ value }: { value: unknown }) {
 
 function KeyValueList({ value }: { value: Record<string, unknown> }) {
   const entries = Object.entries(value)
-  if (entries.length === 0) return <span className="text-ink-400">—</span>
+  if (entries.length === 0) return <span className="text-ink-500">—</span>
   return (
     <dl className="space-y-1">
       {entries.map(([key, entryValue]) => (
@@ -58,7 +58,7 @@ function KeyValueList({ value }: { value: Record<string, unknown> }) {
  */
 function ClinicalStateValue({ value }: { value: unknown }) {
   if (Array.isArray(value)) {
-    if (value.length === 0) return <span className="text-ink-400">—</span>
+    if (value.length === 0) return <span className="text-ink-500">—</span>
     const allScalar = value.every((item) => item === null || typeof item !== 'object')
     if (allScalar) {
       return (
@@ -232,7 +232,7 @@ function BackstageTurnItem({ turn, title }: { turn: BackstageTurn; title: string
         {turn.clinical_state ? <ClinicalState state={turn.clinical_state} /> : null}
 
         {!hasStructuredFields ? (
-          <p className="text-caption text-ink-400" data-testid="backstage-empty-turn">
+          <p className="text-caption text-ink-500" data-testid="backstage-empty-turn">
             —
           </p>
         ) : null}
