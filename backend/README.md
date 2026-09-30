@@ -70,6 +70,7 @@ transcript.
 ```bash
 uv run python -m app.cli create-user --username dr.x --display-name "دکتر ..." --role evaluator   # prompts for password (≥ 8 chars)
 uv run python -m app.cli create-user --username qa --display-name "QA" --role evaluator --password-stdin
+uv run python -m app.cli init-qa --admin admin --evaluator dr.qa [--force]   # fresh M3 database, see below
 uv run python -m app.cli list-agents
 uv run python -m app.cli smoke-test [--agent ID] [--include-disabled] [--json PATH]    # real OpenRouter calls, ~USD 0.40 for all 14 agents
 uv run python -m app.cli cost-report --by model --csv data/cost-by-model.csv           # DB only, no key needed
@@ -82,15 +83,49 @@ are the same: at least 8 characters, no duplicate username. PowerShell:
 "secret123" | uv run python -m app.cli create-user --username qa --display-name "QA" --role evaluator --password-stdin
 ```
 
+### Fresh M3 database (`init-qa`)
+
+`init-qa` prepares a clean QA database in one step: it creates the schema, syncs the agents from
+`config/agents.yaml`, creates one admin and one evaluator, and prints the enabled agents (display
+name + id) for the QA protocol's assignment step. Passwords are read from stdin, **line 1 admin,
+line 2 evaluator** (same rules as `create-user`: ≥ 8 characters; a BOM and `\r\n` are stripped).
+Everything (usernames, passwords, agents file) is validated before any file is touched.
+
+- It **refuses** if the database (`--db`, else `DATABASE_PATH`) already exists.
+- `--force` first moves the database and its `-wal`/`-shm` files to
+  `<db dir>/archive/<YYYYMMDD-HHMMSS>/` (nothing is deleted). Stop any server that uses the file
+  first; a file held open cannot be moved and the command exits 1 without changes.
+
+```powershell
+# host (backend/): two lines on stdin — admin password, then evaluator password
+"admin-password-1", "evaluator-password-1" | uv run python -m app.cli init-qa --admin admin --evaluator dr.qa
+
+# replace an existing data/lab.db (archived to data/archive/<timestamp>/)
+"admin-password-1", "evaluator-password-1" | uv run python -m app.cli init-qa --admin admin --evaluator dr.qa --force
+```
+
+Inside Docker Compose (repository root), with the backend stopped so the file is not in use:
+
+```powershell
+docker compose stop backend
+"admin-password-1", "evaluator-password-1" | docker compose run --rm -T backend uv run python -m app.cli init-qa --admin admin --evaluator dr.qa --force
+docker compose up -d
+```
+
+Further evaluators can be added later with `create-user`.
+
 `smoke-test` checks every selected agent's model slug against `GET /models`, runs a scripted
 two-message conversation plus a forced conclusion through the real architectures, prints a table,
 and exits non-zero if any agent fails. Per agent the table shows each scripted turn's wall-clock
 latency (`t1_s`, `t2_s`, `concl_s`), the mean and max turn latency, the number of LLM calls and
-repairs, the total time, the cost, and the failure reason (`deadline`, `invalid_output`,
-`transport`, `model_missing`). Every scripted step runs under the same turn/call deadlines as the
-app. `--json PATH` also writes one object per agent (config, per-step
-latency, every call with its step, purpose, latency, cost, tokens and error text ≤ 500 chars, the raw
-output of failed calls, `failure_reason`, and each Persian reply). Keep these files under `data/` (git-ignored).
+repairs, the total time, the cost, the serving **provider** (of the last call of each step,
+`t1/t2/concl`, one name when all agree; D-041), and the failure reason (`deadline`,
+`invalid_output`, `transport`, `model_missing`). Every scripted step runs under the same turn/call
+deadlines as the app. `--json PATH` also writes one object per agent (config incl.
+`provider_order`, per-step latency and provider, every call with its step, purpose, latency, cost,
+tokens incl. `cached_prompt_tokens`, `provider` and error text ≤ 500 chars, the raw output of failed
+calls, `failure_reason`, and each Persian reply). Keep these files under `data/` (git-ignored).
+`--config PATH` runs against another agents file (used in phase 2d to try one provider at a time).
 
 Run it before physicians are onboarded (it needs `OPENROUTER_API_KEY` in `.env`, and each run
 costs real money):
@@ -110,18 +145,20 @@ conclusion or take > 75 s in a turn are disabled for M3 by the D-036 gate (`# D-
 ### Cost report (D-035)
 
 ```bash
-uv run python -m app.cli cost-report [--by session|agent|model|architecture] [--status completed|all] [--csv PATH] [--db PATH]
+uv run python -m app.cli cost-report [--by session|agent|model|architecture|provider] [--status completed|all] [--csv PATH] [--db PATH]
 ```
 
 Reads the database only (no OpenRouter key needed; `--db`, else `DATABASE_PATH` from the
 environment or `.env`). Defaults: `--by agent --status completed`. Grouped rows show sessions,
 LLM calls (every attempt, failed and repair included), repair calls, prompt / completion /
-reasoning tokens (sum and mean per session), the **reported** cost (OpenRouter `usage.cost`, the
+reasoning / cached prompt tokens (sum and mean per session), the **reported** cost (OpenRouter `usage.cost`, the
 source of truth: sum, mean, median, max per session), the **estimated** cost (tokens × the price
 snapshot of the session: sum, mean), and `diff_pct` = (estimated − reported) / reported over the
 calls that carry both values; `>15%` marks rows where |diff| > 15 % (usually prompt caching,
-DeepSeek off-peak prices or gpt-oss provider routing — B-043). `--by session` lists one row per
-session (agent, model, architecture, status, end reason, questions, final level, calls, tokens,
+DeepSeek off-peak prices or gpt-oss provider routing — B-043). `--by provider` groups by
+`model / serving provider` (a session served by several providers is `A+B`, one without any
+reported provider is `unknown`; B-051). `--by session` lists one row per session (agent, model,
+architecture, status, end reason, questions, final level, calls, tokens, cached tokens, providers,
 reported and estimated cost). `--csv` writes the same cells as UTF-8 with BOM. An empty database
 prints `no sessions …` and exits 0.
 
@@ -133,13 +170,23 @@ Reload without restarting via `POST /api/v1/admin/agents/reload` (an invalid fil
 config). Running sessions always use the config snapshot taken when they started.
 
 Every model used by any agent needs an entry in the top-level `pricing` map (USD per 1M tokens,
-`input_per_mtok`, `output_per_mtok`, `source`, `as_of`), copied from OpenRouter `GET /models`. The
-price is part of the session snapshot, so a price change affects only new sessions' estimates.
+`input_per_mtok`, `output_per_mtok`, optional `input_cache_read_per_mtok`, `source`, `as_of`),
+copied from OpenRouter `GET /models`. The estimate bills cached prompt tokens at the cache-read
+price when the entry has one (D-042). The price is part of the session snapshot, so a price change
+affects only new sessions' estimates.
 
-**Database schema v1.2.** There are no migrations. A database file created before v1.2 is refused
-at start-up with "database schema is older than v1.2 — delete data/*.db or use a new
-DATABASE_PATH". Delete the old `data/lab.db*` / `data/dev.db*` files (or point `DATABASE_PATH` /
-`--db` at a new file).
+**Provider routing (D-041).** The optional top-level `provider_order` map (model slug → list of
+OpenRouter provider slugs) pins routing for the open-weight models only
+(`openai/gpt-oss-120b`, `deepseek/deepseek-v4-pro-0813`; any other model is rejected). The request
+then carries `provider.order` with `allow_fallbacks: true`; `data_collection: "deny"` is always
+sent. The order is part of the session snapshot. The serving provider of every call is stored in
+`llm_calls.provider`.
+
+**Database schema.** There are no migrations. A database file created by an older version is
+refused at start-up with "database schema is older than the current schema — delete data/*.db or
+use a new DATABASE_PATH" (phase 2d added `llm_calls.provider`, `llm_calls.cached_prompt_tokens`,
+`sessions.total_cached_prompt_tokens`). Delete the old `data/lab.db*` / `data/dev.db*` files, point
+`DATABASE_PATH` / `--db` at a new file, or use `init-qa --force`.
 
 ## Test and lint
 

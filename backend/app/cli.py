@@ -1,4 +1,4 @@
-"""Command-line tools: create-user, list-agents, smoke-test, cost-report.
+"""Command-line tools: create-user, init-qa, list-agents, smoke-test, cost-report.
 
 Usage: uv run python -m app.cli <command> [options]
 """
@@ -8,6 +8,8 @@ import asyncio
 import getpass
 import sys
 from collections.abc import Callable, Sequence
+from pathlib import Path
+from typing import Any
 
 from app.agents.config import AgentConfig
 from app.agents.registry import Registry, RegistryError
@@ -56,7 +58,11 @@ def cmd_create_user(args: argparse.Namespace) -> int:
 def _load_registry(path: str | None) -> Registry:
     from app.settings import get_settings
 
-    registry = Registry(path or get_settings().agents_config_path)
+    return _load_registry_from(path or get_settings().agents_config_path)
+
+
+def _load_registry_from(path: str) -> Registry:
+    registry = Registry(path)
     registry.load()
     return registry
 
@@ -152,24 +158,89 @@ def cmd_smoke_test(args: argparse.Namespace) -> int:
     return asyncio.run(run_smoke(configs, get_llm(), available, args.json))
 
 
-def _database_path(explicit: str | None) -> str:
-    """`--db`, else DATABASE_PATH from the environment or `.env` (no API key needed)."""
-    if explicit:
-        return explicit
+def _local_settings() -> Any:
+    """DATABASE_PATH and AGENTS_CONFIG_PATH from the environment or `.env` (no API key needed)."""
     from pydantic_settings import BaseSettings, SettingsConfigDict
 
-    class _DbSettings(BaseSettings):
+    class _LocalSettings(BaseSettings):
         model_config = SettingsConfigDict(
             env_file=".env", env_file_encoding="utf-8", extra="ignore"
         )
         database_path: str = "data/lab.db"
+        agents_config_path: str = "config/agents.yaml"
 
-    return _DbSettings().database_path
+    return _LocalSettings()
+
+
+def _database_path(explicit: str | None) -> str:
+    """`--db`, else DATABASE_PATH from the environment or `.env` (no API key needed)."""
+    return explicit or _local_settings().database_path
+
+
+def _db_files(path: Path) -> list[Path]:
+    """The SQLite file and its WAL/SHM companions that exist."""
+    return [p for p in (path, Path(f"{path}-wal"), Path(f"{path}-shm")) if p.exists()]
+
+
+def cmd_init_qa(args: argparse.Namespace) -> int:
+    """Prepare a clean M3 database: schema, agents, one admin and one evaluator (phase 2d T4).
+    Everything is validated before any file is moved or created."""
+    from datetime import datetime
+
+    from app import db as app_db
+
+    local = _local_settings()
+    path = Path(args.db or local.database_path)
+    try:
+        registry = _load_registry_from(args.config or local.agents_config_path)
+    except RegistryError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    try:
+        if not args.admin.strip() or not args.evaluator.strip():
+            raise UserError("usernames must not be empty")
+        if args.admin.strip() == args.evaluator.strip():
+            raise UserError("--admin and --evaluator must be different usernames")
+        admin_pw = _read_password_stdin()
+        evaluator_pw = _read_password_stdin()
+    except UserError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    existing = _db_files(path)
+    if path.exists() and not args.force:
+        print(
+            f"error: {path} already exists; refusing to touch it (use --force to archive it first)",
+            file=sys.stderr,
+        )
+        return 1
+    if existing:  # --force (or leftover -wal/-shm files without the database)
+        archive = path.parent / "archive" / datetime.now().strftime("%Y%m%d-%H%M%S")
+        archive.mkdir(parents=True, exist_ok=True)
+        try:
+            for p in existing:
+                p.rename(archive / p.name)
+        except OSError as exc:
+            print(f"error: cannot move {p} (in use by a running server?): {exc}", file=sys.stderr)
+            return 1
+        print(f"archived {', '.join(p.name for p in existing)} to {archive}")
+    app_db.configure(str(path))
+    app_db.init_db()
+    with app_db.session_factory()() as db:
+        registry.sync_to_db(db)
+        for username, pw, role in (
+            (args.admin, admin_pw, "admin"),
+            (args.evaluator, evaluator_pw, "evaluator"),
+        ):
+            user = create_user(db, username=username, display_name=username, password=pw, role=role)
+            print(f"created {user.role} '{user.username}'")
+    enabled = registry.enabled()
+    print(f"\ninitialized {path}; {len(enabled)} enabled agents:")
+    for a in enabled:
+        print(f"  {a.display_name}  {a.id}")
+    return 0
 
 
 def cmd_cost_report(args: argparse.Namespace) -> int:
-    from pathlib import Path
-
     from app import db as app_db
     from app.db.engine import SchemaError, check_schema
     from app.services.cost_report import build_report, format_table, to_csv
@@ -217,6 +288,22 @@ def build_parser() -> argparse.ArgumentParser:
         help="read the password from the first line of stdin instead of prompting",
     )
     p.set_defaults(func=cmd_create_user)
+
+    p = sub.add_parser(
+        "init-qa",
+        help="create a clean M3 database with one admin and one evaluator",
+        description=(
+            "Refuses if the database exists (--force moves it and its -wal/-shm files to "
+            "<db dir>/archive/<timestamp>/ first), creates the schema, syncs the agents and "
+            "creates both users. Passwords are read from stdin: line 1 admin, line 2 evaluator."
+        ),
+    )
+    p.add_argument("--admin", required=True, metavar="USERNAME")
+    p.add_argument("--evaluator", required=True, metavar="USERNAME")
+    p.add_argument("--force", action="store_true", help="archive an existing database first")
+    p.add_argument("--db", metavar="PATH", help="SQLite file (default: DATABASE_PATH)")
+    p.add_argument("--config", help="agents.yaml path (default: AGENTS_CONFIG_PATH)")
+    p.set_defaults(func=cmd_init_qa)
 
     p = sub.add_parser("list-agents", help="print the configured agents")
     p.add_argument("--config", help="agents.yaml path (default: AGENTS_CONFIG_PATH)")
