@@ -61,7 +61,7 @@ transcript.
 uv run python -m app.cli create-user --username dr.x --display-name "دکتر ..." --role evaluator   # prompts for password (≥ 8 chars)
 uv run python -m app.cli create-user --username qa --display-name "QA" --role evaluator --password-stdin
 uv run python -m app.cli list-agents
-uv run python -m app.cli smoke-test [--agent ID] [--include-disabled]    # real OpenRouter calls, costs a few cents
+uv run python -m app.cli smoke-test [--agent ID] [--include-disabled] [--json PATH]    # real OpenRouter calls, ~USD 0.40 for all 12 agents
 ```
 
 `--password-stdin` reads the password from the first line of stdin instead of prompting. The rules
@@ -73,19 +73,24 @@ are the same: at least 8 characters, no duplicate username. PowerShell:
 
 `smoke-test` checks every selected agent's model slug against `GET /models`, runs a scripted
 two-message conversation plus a forced conclusion through the real architectures, prints a table,
-and exits non-zero if any agent fails.
+and exits non-zero if any agent fails. Per agent the table shows each scripted turn's wall-clock
+latency (`t1_s`, `t2_s`, `concl_s`), the mean and max turn latency, the number of LLM calls and
+repairs, the total time, and the cost. `--json PATH` also writes one object per agent (config, per-step
+latency, every call with its step, purpose, latency, cost, tokens and error text ≤ 500 chars, the raw
+output of failed calls, and each Persian reply). Keep these files under `data/` (git-ignored).
 
 Run it before physicians are onboarded (it needs `OPENROUTER_API_KEY` in `.env`, and each run
 costs real money):
 
 ```powershell
-uv run python -m app.cli smoke-test --include-disabled   # all 12 agents
-uv run python -m app.cli smoke-test --agent b-sonnet5    # one agent
+uv run python -m app.cli smoke-test --include-disabled --json data/smoke-run1.json   # all 12 agents
+uv run python -m app.cli smoke-test --agent b-sonnet5                                # one agent
 ```
 
 If a provider rejects a parameter, the fix is a per-model config change in `config/agents.yaml`
 (`send_temperature: false`, `output_mode: prompt_only`, or `reasoning_effort: null`), following
-the rule table from the phase-2 prompt (D-025). Prompts are never changed for this.
+the rule table from the phase-2 prompt (D-025). Prompts are never changed for this. The first real
+runs (phase 2b, `docs/reports/phase-2b-real-model-verification.md`) needed no such change.
 
 ## Agents
 
