@@ -307,7 +307,8 @@ function backstageCantMiss(turnIndex: number): CantMiss[] {
 }
 
 /**
- * One `BackstageTurn` per agent question, aligned through `message_id`.
+ * One `BackstageTurn` per agent **turn** — every `question` plus the concluding `result` — aligned
+ * through `message_id`, matching the real backend (verified against the dev server, phase-3 T4).
  *
  * Structured agents fill the structured fields; simple agents fill `reasoning_note` only.
  * The frontend renders whichever fields are present.
@@ -317,54 +318,66 @@ export function buildBackstage(session: StoredSession): BackstageTurn[] {
   const seenPatientTexts = session.messages
     .filter((message) => message.role === 'patient')
     .map((message) => message.text)
+  const agentTurns = session.messages.filter(
+    (message) =>
+      message.role === 'agent' && (message.kind === 'question' || message.kind === 'result'),
+  )
 
-  return session.messages
-    .filter((message) => message.role === 'agent' && message.kind === 'question')
-    .map((message, turnIndex) => {
-      if (!structured) {
-        return {
-          message_id: message.id,
-          reasoning_note: SIMPLE_REASONING_NOTES[turnIndex % SIMPLE_REASONING_NOTES.length],
-        } satisfies BackstageTurn
-      }
+  let questionIndex = 0
+  return agentTurns.map((message) => {
+    const closing = message.kind === 'result'
+    // The concluding turn reuses the shape of the final question turn.
+    const shapeIndex = closing ? Math.max(0, questionIndex - 1) : questionIndex
+    const observed = seenPatientTexts.slice(0, closing ? seenPatientTexts.length : questionIndex + 1)
+    if (!closing) questionIndex += 1
 
-      const observed = seenPatientTexts.slice(0, turnIndex + 1)
+    if (!structured) {
       return {
         message_id: message.id,
-        clinical_state: {
-          age_years: 68,
-          sex: 'female',
-          pregnancy_possible: 'not_applicable',
-          chief_complaint: 'درد شکم از دیروز',
-          symptoms: [
-            {
-              name: 'درد شکم',
-              onset: 'دیروز',
-              duration: 'حدود ۲۴ ساعت',
-              location: observed.length >= 2 ? 'ربع فوقانی راست' : 'بالای شکم',
-              character: 'مداوم و مبهم',
-              severity_0_10: observed.length >= 2 ? 7 : null,
-              timing_pattern: 'مداوم با تشدید پس از غذا',
-              aggravating: observed.length >= 4 ? ['غذای چرب'] : [],
-              relieving: [],
-            },
-          ],
-          associated_symptoms: observed.length >= 3 ? ['تهوع'] : [],
-          pertinent_negatives: observed.length >= 3 ? ['تب', 'استفراغ خونی'] : [],
-          medical_history: observed.length >= 3 ? ['دیابت نوع ۲', 'فشار خون بالا'] : [],
-          medications: observed.length >= 4 ? ['متورمین', 'لوزارتان'] : [],
-          allergies: [],
-          other_relevant: observed,
-          contradictions: [],
-        },
-        hypotheses: backstageHypotheses(turnIndex),
-        cant_miss: backstageCantMiss(turnIndex),
-        emergency_probability: [0.11, 0.14, 0.17, 0.2][turnIndex] ?? 0.24,
-        next_action: 'ask',
-        stop_reason: null,
-        question_rationale: STRUCTURED_RATIONALES[turnIndex % STRUCTURED_RATIONALES.length],
+        reasoning_note: closing
+          ? SIMPLE_REASONING_NOTES[SIMPLE_REASONING_NOTES.length - 1]
+          : SIMPLE_REASONING_NOTES[shapeIndex % SIMPLE_REASONING_NOTES.length],
       } satisfies BackstageTurn
-    })
+    }
+
+    return {
+      message_id: message.id,
+      clinical_state: {
+        age_years: 68,
+        sex: 'female',
+        pregnancy_possible: 'not_applicable',
+        chief_complaint: 'درد شکم از دیروز',
+        symptoms: [
+          {
+            name: 'درد شکم',
+            onset: 'دیروز',
+            duration: 'حدود ۲۴ ساعت',
+            location: observed.length >= 2 ? 'ربع فوقانی راست' : 'بالای شکم',
+            character: 'مداوم و مبهم',
+            severity_0_10: observed.length >= 2 ? 7 : null,
+            timing_pattern: 'مداوم با تشدید پس از غذا',
+            aggravating: observed.length >= 4 ? ['غذای چرب'] : [],
+            relieving: [],
+          },
+        ],
+        associated_symptoms: observed.length >= 3 ? ['تهوع'] : [],
+        pertinent_negatives: observed.length >= 3 ? ['تب', 'استفراغ خونی'] : [],
+        medical_history: observed.length >= 3 ? ['دیابت نوع ۲', 'فشار خون بالا'] : [],
+        medications: observed.length >= 4 ? ['متورمین', 'لوزارتان'] : [],
+        allergies: [],
+        other_relevant: observed,
+        contradictions: [],
+      },
+      hypotheses: backstageHypotheses(shapeIndex),
+      cant_miss: backstageCantMiss(shapeIndex),
+      emergency_probability: [0.11, 0.14, 0.17, 0.2][shapeIndex] ?? 0.24,
+      next_action: closing ? 'conclude' : 'ask',
+      stop_reason: closing ? 'enough_information' : null,
+      question_rationale: closing
+        ? ''
+        : STRUCTURED_RATIONALES[shapeIndex % STRUCTURED_RATIONALES.length],
+    } satisfies BackstageTurn
+  })
 }
 
 /* ------------------------------------------------------------------ *
@@ -415,11 +428,13 @@ export function completeSession(
   session.end_reason = options.endReason ?? 'agent_concluded'
   session.completed_at = completedAt
   session.result = buildResultCard(session, mockCase)
-  session.backstage = buildBackstage(session)
+  // Append the result message first: the backstage needs its id for the concluding turn, and the
+  // real backend emits one BackstageTurn for the result message too.
   appendMessage(session, 'agent', 'result', finalPatientMessageText(mockCase), {
     latencyMs: options.latencyMs ?? 4_800,
     createdAt: completedAt,
   })
+  session.backstage = buildBackstage(session)
   return session
 }
 

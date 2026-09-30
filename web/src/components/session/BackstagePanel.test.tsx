@@ -11,17 +11,19 @@ import {
   BACKSTAGE_NEXT_ACTION,
   BACKSTAGE_QUESTION_RATIONALE,
   BACKSTAGE_REASONING_NOTE,
+  BACKSTAGE_STOP_REASON,
   BACKSTAGE_TITLE,
   BACKSTAGE_TOGGLE_HIDE,
   BACKSTAGE_TOGGLE_SHOW,
 } from '@/i18n/uiText'
+import { NEXT_ACTION_LABELS } from '@/i18n/labels'
 import { setupMockApi } from '@/test/msw'
 import { renderApp, signInAs } from '@/test/renderApp'
 
 setupMockApi()
 
 describe('backstage — structured (b-) session', () => {
-  it('renders one timeline item per agent question with the structured fields', async () => {
+  it('renders one timeline item per agent turn (questions + the conclusion) with the structured fields', async () => {
     signInAs('doctor')
     renderApp(`/sessions/${FIXTURE_SESSION_IDS.completedStructured}`)
 
@@ -29,7 +31,7 @@ describe('backstage — structured (b-) session', () => {
     expect(within(panel).getByText(BACKSTAGE_TITLE)).toBeInTheDocument()
 
     const turns = within(panel).getAllByTestId('backstage-turn')
-    expect(turns).toHaveLength(4)
+    expect(turns).toHaveLength(5)
 
     // the item title is the text of the agent message the reasoning produced
     expect(
@@ -50,6 +52,20 @@ describe('backstage — structured (b-) session', () => {
 
     // the clinical state is collapsed by default
     expect(within(panel).queryByTestId('clinical-state')).not.toBeInTheDocument()
+  })
+
+  it('includes a concluding turn for the result message (T4 realism alignment)', async () => {
+    signInAs('doctor')
+    renderApp(`/sessions/${FIXTURE_SESSION_IDS.completedStructured}`)
+
+    const panel = await screen.findByTestId('backstage-panel')
+    const turns = within(panel).getAllByTestId('backstage-turn')
+    const last = turns[turns.length - 1]
+
+    // matches the real backend: the concluding result message has its own BackstageTurn with
+    // next_action "conclude" and a stop_reason.
+    expect(within(last).getByText(NEXT_ACTION_LABELS.conclude)).toBeInTheDocument()
+    expect(within(last).getByText(BACKSTAGE_STOP_REASON)).toBeInTheDocument()
   })
 
   it('expands the clinical state as nested key/value lists', async () => {
@@ -79,13 +95,13 @@ describe('backstage — structured (b-) session', () => {
     renderApp(`/sessions/${FIXTURE_SESSION_IDS.completedStructured}`)
 
     const panel = await screen.findByTestId('backstage-panel')
-    expect(within(panel).getAllByTestId('backstage-turn')).toHaveLength(4)
+    expect(within(panel).getAllByTestId('backstage-turn')).toHaveLength(5)
 
     await user.click(within(panel).getByRole('button', { name: BACKSTAGE_TOGGLE_HIDE }))
     expect(within(panel).queryAllByTestId('backstage-turn')).toHaveLength(0)
 
     await user.click(within(panel).getByRole('button', { name: BACKSTAGE_TOGGLE_SHOW }))
-    expect(within(panel).getAllByTestId('backstage-turn')).toHaveLength(4)
+    expect(within(panel).getAllByTestId('backstage-turn')).toHaveLength(5)
   })
 })
 
@@ -96,9 +112,9 @@ describe('backstage — simple (a-) session', () => {
 
     const panel = await screen.findByTestId('backstage-panel')
     const turns = within(panel).getAllByTestId('backstage-turn')
-    expect(turns).toHaveLength(3)
+    expect(turns).toHaveLength(4)
 
-    expect(within(panel).getAllByText(BACKSTAGE_REASONING_NOTE).length).toBe(3)
+    expect(within(panel).getAllByText(BACKSTAGE_REASONING_NOTE).length).toBe(4)
     expect(within(panel).queryByText(BACKSTAGE_QUESTION_RATIONALE)).not.toBeInTheDocument()
     expect(within(panel).queryByText(BACKSTAGE_HYPOTHESES)).not.toBeInTheDocument()
     expect(within(panel).queryByText(BACKSTAGE_CLINICAL_STATE)).not.toBeInTheDocument()
